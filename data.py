@@ -1,7 +1,7 @@
 import os
 import numpy as np
 import open3d as o3d
-
+import re
 
 class PointCloudLoader:
     def __init__(self, base_dir):
@@ -110,6 +110,7 @@ class ObjectLabelLoader:
         file_path = f"{self.base_dir}/tracking_train_label/{frame_id}/{file_id}.txt"
         return file_path
 
+
     @staticmethod
     def read_label_file(file_path):
         """
@@ -212,7 +213,7 @@ class FrameDataProcessor:
         file_ids = [f.split('_')[0][:-4] for f in os.listdir(label_path) if f.endswith('.txt')]
         all_data = []
 
-        for file_id in file_ids:
+        for file_id in self.numeric_sort_key(file_ids):
             frame_data = self.load_frame_data(file_id)
             self.collect_object_points(frame_data)
             frame_data = self.traverse_points(frame_data, file_id)
@@ -220,10 +221,18 @@ class FrameDataProcessor:
         temp = []
         for frame_data in all_data:
             temp += [frame_data['point_cloud']] + [label['bbox'] for label in frame_data['labels']]
-        visualization(temp)
+        # visualization(temp)
 
         return all_data
 
+    @staticmethod
+    def numeric_sort_key(ids):
+        """
+        从文件名中提取数字，用于排序
+        """
+        int_numbers = [int(num) for num in ids]
+        sorted_int_numbers = sorted(int_numbers)
+        return [str(num) for num in sorted_int_numbers]
     @staticmethod
     def collect_object_points(frame_data):
         pc_manager = PointCloudManager(frame_data['point_cloud'])
@@ -267,7 +276,6 @@ class FrameDataProcessor:
                     bbox.R = global_rotation_matrix @ bbox.R
 
             return frame_data
-
 
         except FileNotFoundError as e:
             print(f"Error loading data for file ID {file_id}: {e}")
@@ -336,7 +344,7 @@ class PointCloudManager:
         if isinstance(size, dict):
             extent = np.array([size['length'], size['width'], size['height']])
         else:
-            extent = np.array(size) / 2  # Assuming size is already in an array/list form
+            extent = np.array(size)  # Assuming size is already in an array/list form
 
         # Compute the rotation matrix from the heading angle
         R = np.array([
