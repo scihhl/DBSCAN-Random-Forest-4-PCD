@@ -1,7 +1,6 @@
 import os
 import numpy as np
 import open3d as o3d
-import re
 
 class PointCloudLoader:
     def __init__(self, base_dir):
@@ -170,32 +169,39 @@ class FrameDataProcessor:
         """
         加载一个帧的所有相关数据
         :param file_id: 文件编号，如 '233'
-        :return: 返回一个包含pose, labels和point_clouds的字典
+        :return: 返回一个包含pose, labels和point_clouds的字典，如果加载过程中出现错误则返回None
         """
-        # 加载Pose数据
-        pose = self.pose_loader.load_camera_poses(self.frame_id, file_id)
+        try:
+            # 加载Pose数据
+            pose = self.pose_loader.load_camera_poses(self.frame_id, file_id)
 
-        # 加载Label数据
-        labels = self.label_loader.load_object_labels(self.frame_id, file_id)
+            # 加载Label数据
+            labels = self.label_loader.load_object_labels(self.frame_id, file_id)
 
-        # 确定PCD文件所在的track_id文件夹
-        track_id = self.find_track_id()
-        if track_id is None:
-            raise ValueError("Frame ID not found in any track ID folder")
+            # 确定PCD文件所在的track_id文件夹
+            track_id = self.find_track_id()
+            if track_id is None:
+                raise ValueError("Frame ID not found in any track ID folder")
 
-        # 加载与file_id对应的单个PCD文件
-        pcd_path = os.path.join(self.base_dir, f'tracking_train_pcd_{track_id}',
-                                f'result_{self.frame_id}_frame', f'{file_id}.pcd')
+            # 加载与file_id对应的单个PCD文件
+            pcd_path = os.path.join(self.base_dir, f'tracking_train_pcd_{track_id}',
+                                    f'result_{self.frame_id}_frame', f'{file_id}.pcd')
 
-        if not os.path.exists(pcd_path):
-            raise FileNotFoundError(f"No PCD file found for file ID {file_id} in frame {self.frame_id}")
-        point_cloud = self.pcd_loader.load_point_cloud(pcd_path)
+            if not os.path.exists(pcd_path):
+                raise FileNotFoundError(f"No PCD file found for file ID {file_id} in frame {self.frame_id}")
 
-        return {
-            'pose': pose,
-            'labels': labels,
-            'point_cloud': point_cloud  # 返回单个点云对象
-        }
+            point_cloud = self.pcd_loader.load_point_cloud(pcd_path)
+
+            return {
+                'pose': pose,
+                'labels': labels,
+                'point_cloud': point_cloud  # 返回单个点云对象
+            }
+
+        except Exception as e:  # 捕获所有可能的异常
+            print(f"An unexpected error occurred: {e}")
+            return None
+
 
     def find_track_id(self):
         """
@@ -215,6 +221,8 @@ class FrameDataProcessor:
 
         for file_id in self.numeric_sort_key(file_ids):
             frame_data = self.load_frame_data(file_id)
+            if frame_data is None:
+                continue
             self.collect_object_points(frame_data)
             frame_data = self.traverse_points(frame_data, file_id)
             all_data.append(frame_data)
