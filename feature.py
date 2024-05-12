@@ -365,8 +365,8 @@ class StaticFeaturesExtractor:
             features['location_x'] = center_location[0]
             features['location_y'] = center_location[1]
             features['location_z'] = center_location[2]
-            features['timestamp'] = center_location[2]
-            features_list.append(dataset['pose']['timestamp'])
+            features['timestamp'] = dataset['pose']['timestamp']
+            features_list.append(features)
 
         return features_list
 
