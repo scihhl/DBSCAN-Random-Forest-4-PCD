@@ -4,6 +4,7 @@ from feature import ObjectHandler, ObjectFeaturesExtractor, StaticFeaturesExtrac
 from data import FrameDataProcessor
 import pandas as pd
 from random_forest import model_generator
+import time
 
 class Task:
     def __init__(self, base='data'):
@@ -18,8 +19,14 @@ class Task:
         self.save_data(train_features, 'train_features.csv')
         self.save_data(test_features, 'test_features.csv')
 
+        start_time = time.time()
         static_test_features = self.process_static_feature(test_set)
         self.save_data(static_test_features, 'static_test_features.csv')
+        end_time = time.time()
+
+        elapsed_time = end_time - start_time
+        print(f'The running time is', elapsed_time)
+
         print(static_test_features)
 
     def split_dataset(self):
