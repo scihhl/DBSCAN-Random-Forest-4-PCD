@@ -15,7 +15,7 @@ class Task:
         test_features = self.extract_dataset_feature(train_set)
 
         self.save_data(train_features, 'train_features.csv')
-        self.save_data(test_features, 'train_features.csv')
+        #self.save_data(test_features, 'test_features.csv')
 
     def split_dataset(self):
         file_path = f"{self.base_dir}/tracking_train_label"
