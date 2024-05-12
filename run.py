@@ -26,8 +26,8 @@ class Task:
         file_path = f"{self.base_dir}/tracking_train_label"
         directories = self.list_directories(file_path)
         n = len(directories)
-        train_set = directories[:2 * n // 5]
-        test_set = directories[2 * n // 5:]
+        train_set = directories[:4 * n // 5]
+        test_set = directories[4 * n // 5:]
         return train_set, test_set
 
     def process_static_feature(self, dataset):

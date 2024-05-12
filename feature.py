@@ -338,8 +338,10 @@ class StaticFeaturesExtractor:
 
             density, obb_extent, surface_area, volume = self.tools.compute_size(obj)
 
-            density /= self.tools.distance_between_points([dataset['pose']['position'],
-                                                           self.compute_geometric_center(obj)]) ** 2
+            center_location = self.compute_geometric_center(obj)
+            camera_location = dataset['pose']['position']
+
+            density /= self.tools.distance_between_points([camera_location, center_location]) ** 2
 
             height, length, width, xy_area = self.tools.determine_3d_value(obb_extent, pca_z_cosine)
 
@@ -355,6 +357,9 @@ class StaticFeaturesExtractor:
             features['density'] = density
             # 计算PCA的Z轴余弦相似度
             features['pca_z_cosine'] = pca_z_cosine
+            features['location_x'] = center_location[0]
+            features['location_y'] = center_location[1]
+            features['location_z'] = center_location[2]
 
             features_list.append(features)
 
