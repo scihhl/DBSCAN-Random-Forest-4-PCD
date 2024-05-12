@@ -28,6 +28,7 @@ class RandomForestModel:
         print(f"Accuracy: {accuracy}")
 
     def predict(self, X):
+        X = X[self.features]
         return self.model.predict(X)
 
 

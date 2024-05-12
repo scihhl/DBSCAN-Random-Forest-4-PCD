@@ -14,35 +14,43 @@ class ObjectTracker:
         self.full_feature_model = full_feature_model
         self.tracked_objects = {}  # 存储跟踪的物体及其历史
 
-    def compute_cost_matrix(self, objects_frame_n, objects_frame_n_plus_1):
-        """
-        计算成本矩阵，基于物体的静态特征
-        """
+    @staticmethod
+    def calculate_euclidean_distance(obj1, obj2):
+        return np.linalg.norm(np.array(obj1['position']) - np.array(obj2['position']))
+    @staticmethod
+    def calculate_cosine_similarity(features1, features2):
+        dot_product = np.dot(features1, features2)
+        norm1 = np.linalg.norm(features1)
+        norm2 = np.linalg.norm(features2)
+        return dot_product / (norm1 * norm2)
+    @staticmethod
+    def build_cost_matrix(objects_frame_n, objects_frame_n_plus_1, w_d=1, w_c=1):
+        self = ObjectTracker
         num_objects_n = len(objects_frame_n)
         num_objects_n1 = len(objects_frame_n_plus_1)
         cost_matrix = np.zeros((num_objects_n, num_objects_n1))
 
         for i, obj_n in enumerate(objects_frame_n):
             for j, obj_n1 in enumerate(objects_frame_n_plus_1):
-                # 简单使用欧几里得距离计算成本
-                cost = np.linalg.norm(np.array([obj_n['length'], obj_n['width'], obj_n['height']]) -
-                                      np.array([obj_n1['length'], obj_n1['width'], obj_n1['height']]))
-                cost_matrix[i, j] = cost
+                distance = self.calculate_euclidean_distance(obj_n, obj_n1)
+                cosine_similarity = self.calculate_cosine_similarity(obj_n['features'], obj_n1['features'])
+                cost_matrix[i, j] = w_d * distance + w_c * (1 - cosine_similarity)
 
         return cost_matrix
 
-    def update_tracking(self, frames):
+    def update_tracking(self, frames, cost_threshold=0.5):
         """
         更新物体追踪状态
+        :param cost_threshold: 成本函数阈值
         :param frames: 包含连续帧中所有物体静态特征的列表
         """
         for i in range(len(frames) - 1):
-            cost_matrix = self.compute_cost_matrix(frames[i], frames[i + 1])
+            cost_matrix = self.build_cost_matrix(frames[i], frames[i + 1])
             row_ind, col_ind = linear_sum_assignment(cost_matrix)
 
             # 使用匈牙利算法结果更新跟踪信息
             for row, col in zip(row_ind, col_ind):
-                if cost_matrix[row, col] < some_threshold:  # 设置一个阈值来决定是否是同一个物体
+                if cost_matrix[row, col] < cost_threshold:  # 设置一个阈值来决定是否是同一个物体
                     # 更新或创建跟踪对象
                     object_id = frames[i][row].get('object_id', None)
                     if object_id:

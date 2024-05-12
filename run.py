@@ -13,19 +13,14 @@ class Task:
     def prepare_data(self):
         train_set, test_set = self.split_dataset()
 
-        train_features = self.extract_dataset_feature(train_set)
-        test_features = self.extract_dataset_feature(test_set)
+        #train_features = self.extract_dataset_feature(train_set)
+        #test_features = self.extract_dataset_feature(test_set)
 
-        self.save_data(train_features, 'train_features.csv')
-        self.save_data(test_features, 'test_features.csv')
+        #self.save_data(train_features, 'train_features.csv')
+        #self.save_data(test_features, 'test_features.csv')
 
-        start_time = time.time()
         static_test_features = self.process_static_feature(test_set)
         self.save_data(static_test_features, 'static_test_features.csv')
-        end_time = time.time()
-
-        elapsed_time = end_time - start_time
-        print(f'The running time is', elapsed_time)
 
         print(static_test_features)
 
@@ -97,7 +92,7 @@ class Task:
 if __name__ == '__main__':
     task = Task()
     task.prepare_data()
-    task.predict_label(feature_file='static_test_features.csv')
+    #task.predict_label(feature_file='static_test_features.csv')
 
 
 

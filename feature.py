@@ -357,11 +357,16 @@ class StaticFeaturesExtractor:
             features['density'] = density
             # 计算PCA的Z轴余弦相似度
             features['pca_z_cosine'] = pca_z_cosine
+
             features['location_x'] = center_location[0]
             features['location_y'] = center_location[1]
             features['location_z'] = center_location[2]
 
-            features_list.append(features)
+            features['location_x'] = center_location[0]
+            features['location_y'] = center_location[1]
+            features['location_z'] = center_location[2]
+            features['timestamp'] = center_location[2]
+            features_list.append(dataset['pose']['timestamp'])
 
         return features_list
 
