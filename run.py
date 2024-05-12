@@ -14,8 +14,8 @@ class Task:
         train_features = self.extract_dataset_feature(train_set)
         test_features = self.extract_dataset_feature(train_set)
 
-        self.save_data(train_features, 'train_features.csv')
-        #self.save_data(test_features, 'test_features.csv')
+        #self.save_data(train_features, 'train_features.csv')
+        self.save_data(test_features, 'test_features.csv')
 
     def split_dataset(self):
         file_path = f"{self.base_dir}/tracking_train_label"
@@ -25,9 +25,9 @@ class Task:
         test_set = directories[2 * n // 3:]
         return train_set, test_set
 
-    def extract_dataset_feature(self, train_set):
+    def extract_dataset_feature(self, dataset):
         features = []
-        for directory in train_set:
+        for directory in dataset:
             frame_id = directory
             processor = FrameDataProcessor(self.base_dir, frame_id)
             frame_data = processor.load_all_frame_data()

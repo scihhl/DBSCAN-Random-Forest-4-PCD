@@ -241,6 +241,7 @@ class FrameDataProcessor:
         int_numbers = [int(num) for num in ids]
         sorted_int_numbers = sorted(int_numbers)
         return [str(num) for num in sorted_int_numbers]
+
     @staticmethod
     def collect_object_points(frame_data):
         pc_manager = PointCloudManager(frame_data['point_cloud'])
@@ -381,6 +382,7 @@ class PointCloudManager:
         :param labels: A list of label dictionaries containing position, size, and heading.
         """
         bboxes = []
+
         for label in labels:
             bbox = self.create_3d_bbox(label['position'], label['size'], label['heading'])
             bboxes.append(bbox)
@@ -391,8 +393,6 @@ class PointCloudManager:
                                                                o3d.geometry.PointCloud) else o3d.geometry.PointCloud(
                 object_points)
             label['bbox'] = bbox
-        # visualization([self.point_cloud] + bboxes)
-        return
 
 
 def visualization(objs):
