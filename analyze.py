@@ -14,7 +14,6 @@ class EvaluationMetrics:
         y1 = max(bbox_pred[1], bbox_true[1])
         x2 = min(bbox_pred[0] + bbox_pred[2], bbox_true[0] + bbox_true[2])
         y2 = min(bbox_pred[1] + bbox_pred[3], bbox_true[1] + bbox_true[3])
-
         inter_area = max(0, x2 - x1) * max(0, y2 - y1)
         pred_area = bbox_pred[2] * bbox_pred[3]
         true_area = bbox_true[2] * bbox_true[3]
@@ -44,34 +43,49 @@ class EvaluationMetrics:
         return closest_obj
 
     def evaluate(self):
+        total_true_positives = 0
+        total_false_positives = 0
+        total_false_negatives = 0
+        total_true = 0
+
         results = {'average_position_error': [], 'category_accuracy': [], 'average_iou': [],
                    'feature_vector_similarity': []}
+
         for timestamp_pred, timestamp_true in zip(self.pred, self.true):
+            matched_true_objects = set()
             for pred_obj in timestamp_pred:
                 closest_obj = self.find_closest_object(pred_obj, timestamp_true)
+                total_true += 1
 
-                # 计算位置误差
                 pos_error = self.calculate_position_error(pred_obj['position'], closest_obj['position'])
-                results['average_position_error'].append(pos_error)
-
-                # 计算类别准确性
                 cat_accuracy = self.calculate_category_accuracy(pred_obj['category'], closest_obj['category'])
-                results['category_accuracy'].append(cat_accuracy)
-
-                # 计算IoU
                 iou = self.calculate_iou(pred_obj.get('bbox', []), closest_obj.get('bbox', []))
-                results['average_iou'].append(iou)
-
-                # 计算特征向量相似度
                 similarity = self.calculate_feature_similarity(pred_obj['full_feature_vector'],
                                                                closest_obj['full_feature_vector'])
+
+                results['average_position_error'].append(pos_error)
+                results['category_accuracy'].append(cat_accuracy)
+                results['average_iou'].append(iou)
                 results['feature_vector_similarity'].append(similarity)
 
-        # 计算平均值
+                if iou >= self.iou_threshold:
+                    total_true_positives += cat_accuracy
+                    matched_true_objects.add(closest_obj)
+
+            total_false_positives += len(timestamp_pred) - len(matched_true_objects)
+            total_false_negatives += len(timestamp_true) - len(matched_true_objects)
+
+        precision = total_true_positives / (total_true_positives + total_false_positives) if (
+                (total_true_positives + total_false_positives) > 0) else 0
+        recall = total_true_positives / (total_true) if total_true > 0 else 0
+        accuracy = np.mean(results['category_accuracy']) if results['category_accuracy'] else 0
+
         metrics = {
             'Mean Position Error': np.mean(results['average_position_error']),
-            'Category Accuracy': np.mean(results['category_accuracy']),
+            'Category Accuracy': accuracy,
             'Mean IoU': np.mean(results['average_iou']),
-            'Mean Feature Vector Similarity': np.mean(results['feature_vector_similarity'])
+            'Mean Feature Vector Similarity': np.mean(results['feature_vector_similarity']),
+            'Precision': precision,
+            'Recall': recall
         }
         return metrics
