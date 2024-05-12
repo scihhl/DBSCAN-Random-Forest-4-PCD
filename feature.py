@@ -1,4 +1,5 @@
 import numpy as np
+<<<<<<< HEAD
 
 
 class ObjectHandler:
@@ -64,6 +65,24 @@ class ObjectFeaturesExtractor:
         self.timestamps = handler.times
         self.camera_movement, self.camera_velocity, self.camera_acceleration = (
             handler.camera_movement, handler.camera_velocity, handler.camera_acceleration)
+=======
+import open3d as o3d
+from data import FrameDataProcessor
+from data import visualization
+from PCA_executor import PCAExecutor
+class ObjectFeaturesExtractor:
+    def __init__(self, labels, poses, timestamps):
+        """
+        初始化特征提取器
+        :param labels: 一个列表，包含连续帧中的点云对象
+        :param poses: 一个列表，包含连续帧中的摄像机信息
+        :param timestamps: 与点云相对应的时间戳列表
+        """
+        self.point_clouds = labels
+        self.poses = poses
+        self.timestamps = timestamps
+
+>>>>>>> origin/main
 
     @staticmethod
     def compute_principal_axes(point_cloud):
@@ -86,6 +105,7 @@ class ObjectFeaturesExtractor:
         obb = point_cloud.get_oriented_bounding_box()
         return obb.extent
 
+<<<<<<< HEAD
     @staticmethod
     def compute_density(point_cloud, volume):
         """
@@ -93,6 +113,14 @@ class ObjectFeaturesExtractor:
         """
         points = np.asarray(point_cloud.points).shape[0]
         return points / volume if volume != 0 else 0
+=======
+    def compute_density(self, point_cloud):
+        """
+        计算点云的密度
+        """
+        volume = np.prod(self.compute_bounding_box(point_cloud))
+        return len(point_cloud) / volume if volume != 0 else 0
+>>>>>>> origin/main
 
     @staticmethod
     def compute_diff(vector):
@@ -111,6 +139,7 @@ class ObjectFeaturesExtractor:
         return extended_time_intervals
 
     @staticmethod
+<<<<<<< HEAD
     def compute_velocity(position_diff_vectors, extended_time_intervals):
         # 由于 extended_time_intervals 已经与原始 timestamps 等长，我们直接使用整个数组进行广播
         return position_diff_vectors / extended_time_intervals[:, np.newaxis]
@@ -118,6 +147,16 @@ class ObjectFeaturesExtractor:
     @staticmethod
     def compute_acceleration(velocity_diff_vectors, extended_time_intervals):
         return velocity_diff_vectors / extended_time_intervals[:, np.newaxis]
+=======
+    def compute_velocity(position_vectors, extended_time_intervals):
+        position_diff_vectors = ObjectFeaturesExtractor.compute_diff(position_vectors)
+        return position_diff_vectors / extended_time_intervals
+
+    @staticmethod
+    def compute_acceleration(velocity_vectors, extended_time_intervals):
+        velocity_diff_vectors = ObjectFeaturesExtractor.compute_diff(velocity_vectors)
+        return velocity_diff_vectors / extended_time_intervals
+>>>>>>> origin/main
 
     @staticmethod
     def compute_cosine_similarity(vector1, vector2):
@@ -126,6 +165,7 @@ class ObjectFeaturesExtractor:
         cos_theta = dot_product / norms_product
         return cos_theta
 
+<<<<<<< HEAD
     @staticmethod
     def compute_movement(location_vectors, time_vectors):
         self = ObjectFeaturesExtractor
@@ -141,10 +181,13 @@ class ObjectFeaturesExtractor:
 
         return movement, velocity, acceleration, angel_change, angel_change_speed
 
+=======
+>>>>>>> origin/main
     def extract_features(self):
         features = []
 
         # 摄像机运动向量计算（需要poses和timestamps）
+<<<<<<< HEAD
 
         label_sequence = []
         for i, label in enumerate(self.point_clouds):
@@ -190,11 +233,53 @@ class ObjectFeaturesExtractor:
                 'object_type': label['object_type'],
                 'angle_change': angle_change,
                 'angle_speed': angle_speed
+=======
+        camera_velocity = self.compute_velocity(np.array(self.poses), self.compute_timediff(self.timestamps))
+
+        for i, label in enumerate(self.point_clouds):
+            if label is None:
+                continue  # 跳过无效的时间戳
+
+            # 获取点云和位置数据
+            point_cloud = label['point_cloud']
+            position = np.array([label['position']['x'], label['position']['y'], label['position']['z']])
+            pose = self.poses[i]
+
+            # 计算边界框尺寸和体积
+            obb_extent = self.compute_bounding_box(point_cloud)
+            volume = np.prod(obb_extent)
+            surface_area = 2 * (obb_extent[0]*obb_extent[1] + obb_extent[1]*obb_extent[2] + obb_extent[2]*obb_extent[0])
+            xy_area = obb_extent[0] * obb_extent[1]
+
+            # PCA 主轴
+            pca_axes = self.compute_principal_axes(point_cloud)
+            z_axis = np.array([0, 0, 1])
+            principal_axis = pca_axes[:, 0]
+
+            # 余弦相似度
+            pca_z_cosine = self.compute_cosine_similarity(principal_axis, z_axis)
+
+            # 其他特征
+            principal_motion_cosine = self.compute_cosine_similarity(principal_axis, camera_velocity[i])
+            camera_motion_cosine = self.compute_cosine_similarity(camera_velocity[i], pose['direction'])
+
+            # 收集所有特征
+            feature_vector = {
+                'obb_extent': obb_extent,
+                'volume': volume,
+                'surface_area': surface_area,
+                'xy_area': xy_area,
+                'pca_z_cosine': pca_z_cosine,
+                'principal_motion_cosine': principal_motion_cosine,
+                'camera_motion_cosine': camera_motion_cosine,
+                'camera_velocity': camera_velocity[i]
+>>>>>>> origin/main
             }
             features.append(feature_vector)
 
         return features
 
+<<<<<<< HEAD
     def computer_obj_motion(self, acceleration_magnitudes, i, label_id, obj_accelerations, obj_angle_changes,
                             obj_angle_speeds, obj_movements, obj_velocities, principal_axis, velocity_magnitudes):
         # 速度与加速度的向量
@@ -272,10 +357,13 @@ class ObjectFeaturesExtractor:
         density = self.compute_density(point_cloud, volume)
         return density, obb_extent, surface_area, volume
 
+=======
+>>>>>>> origin/main
     @staticmethod
     def compute_angle_change(velocity_vectors):
         angle_changes = []
         for i in range(1, len(velocity_vectors)):
+<<<<<<< HEAD
             angle_change = ObjectFeaturesExtractor.compute_cosine_similarity(velocity_vectors[i - 1],
                                                                              velocity_vectors[i])
             angle_changes.append(angle_change)
@@ -284,3 +372,52 @@ class ObjectFeaturesExtractor:
 
 if __name__ == '__main__':
     pass
+=======
+            angle_change = ObjectFeaturesExtractor.compute_cosine_similarity(velocity_vectors[i-1], velocity_vectors[i])
+            angle_changes.append(angle_change)
+        return [angle_changes[0]] + angle_changes  # 第一个时间点没有前一个速度，可以标记为0或其他适当的值
+
+
+
+class ObjectHandler:
+    def __init__(self):
+        pass
+
+    @staticmethod
+    def object_sequence(frame_data, target):
+        sequence = []
+        for frame in frame_data:
+            is_found = False
+            for label in frame['labels']:
+                if label['object_id'] == target:
+                    sequence.append(label)
+                    is_found = True
+                    break
+            if not is_found:
+                sequence.append(None)
+        return sequence
+
+    @staticmethod
+    def timestamp_sequence(frame_data):
+        return [frame['pose']['timestamp'] for frame in frame_data]
+
+    @staticmethod
+    def pose_sequence(frame_data):
+        return [frame['pose']['position'] for frame in frame_data]
+
+def test_data():
+    base_dir = 'data'
+    frame_id = '9048_3'
+
+    processor = FrameDataProcessor(base_dir, frame_id)
+    frame_data = processor.load_all_frame_data()
+    poses = ObjectHandler.pose_sequence(frame_data)
+    objs = ObjectHandler.object_sequence(frame_data, target=1)
+    #[visualization([sequence[i]['point_cloud'], sequence[i]['bbox']]) if sequence[i] else None for i in range(len(sequence))]
+    timestamps = ObjectHandler.timestamp_sequence(frame_data)
+    feature = ObjectFeaturesExtractor(objs, poses, timestamps)
+    feature.extract_features()
+
+if __name__ == '__main__':
+    test_data()
+>>>>>>> origin/main
