@@ -2,6 +2,7 @@ import os
 import numpy as np
 import open3d as o3d
 
+
 class PointCloudLoader:
     def __init__(self, base_dir):
         """
@@ -108,7 +109,6 @@ class ObjectLabelLoader:
         """
         file_path = f"{self.base_dir}/tracking_train_label/{frame_id}/{file_id}.txt"
         return file_path
-
 
     @staticmethod
     def read_label_file(file_path):
@@ -226,11 +226,10 @@ class FrameDataProcessor:
             self.collect_object_points(frame_data)
             frame_data = self.traverse_points(frame_data, file_id)
             all_data.append(frame_data)
-        temp = []
-        for frame_data in all_data:
-            temp += [frame_data['point_cloud']] + [label['bbox'] for label in frame_data['labels']]
+        # temp = []
+        # for frame_data in all_data:
+        #    temp += [frame_data['point_cloud']] + [label['bbox'] for label in frame_data['labels']]
         # visualization(temp)
-
         return all_data
 
     @staticmethod
@@ -334,6 +333,7 @@ class FrameDataProcessor:
         return global_heading
 
 
+
 class PointCloudManager:
     def __init__(self, point_cloud):
         self.point_cloud = point_cloud
@@ -395,6 +395,36 @@ class PointCloudManager:
             label['bbox'] = bbox
 
 
+class PCDObjectExtractor(FrameDataProcessor):
+    def __init__(self, base_dir, frame_id):
+        super().__init__(base_dir, frame_id)
+
+    def extract_objects(self, eps=0.5, min_points=20):
+        """
+        提取指定帧的所有物体及其点云数据
+        :param frame_id: 帧的编号
+        :param eps: DBSCAN的邻域半径
+        :param min_points: 形成一个聚类所需的最小点数
+        :return: 包含各个物体点云的列表
+        """
+        frame_data = self.load_all_frame_data()
+
+        for data in frame_data:
+            labels = np.array(data['point_cloud'].cluster_dbscan(eps=eps, min_points=min_points, print_progress=False))
+
+            # Extract clusters
+            max_label = labels.max()
+            extract_obj = []
+            for i in range(max_label + 1):
+                points = np.asarray(data['point_cloud'].points)[labels == i]
+                object_pcd = o3d.geometry.PointCloud()
+                object_pcd.points = o3d.utility.Vector3dVector(points)
+                extract_obj.append(object_pcd)
+            data['extract_obj'] = extract_obj
+
+        return frame_data
+
+
 def visualization(objs):
     o3d.visualization.draw_geometries(objs)
     return
@@ -436,9 +466,16 @@ def test_frame():
         print('+++++++++++++++++end++++++++++++++++')  # 注意现在返回的是单个点云对象
 
 
+def test_extract():
+    base_dir = 'data'  # 假设数据存储在名为"data"的文件夹中
+    extractor = PCDObjectExtractor(base_dir, frame_id='9048_1')
+    frame_data = extractor.extract_objects()
+    return frame_data
+
 # 测试
 if __name__ == '__main__':
     # test_PCD()
     # test_pose()
     # test_label()
-    test_frame()
+    # test_frame()
+    test_extract()

@@ -31,21 +31,21 @@ class RandomForestModel:
         return self.model.predict(X)
 
 
-
-if __name__ == "__main__":
-    # 创建随机森林模型实例
-    # 静态特征
-    features_static = ['length', 'width', 'height', 'volume', 'surface_area', 'xy_area', 'density', 'pca_z_cosine']
-    model_static = RandomForestModel(features_static, 'object_type', n_estimators=50)
-    model_static.load_data('train_features.csv', 'test_features.csv')
-    model_static.train()
-    model_static.evaluate()
-
-    # 全特征
-    features_all = ['length', 'width', 'height', 'volume', 'surface_area', 'xy_area', 'density', 'pca_z_cosine',
+def model_generator(mode='static', n_estimators=100, random_state=42):
+    if mode == 'static':
+        features = ['length', 'width', 'height', 'volume', 'surface_area', 'xy_area', 'density', 'pca_z_cosine']
+    else:
+        features = ['length', 'width', 'height', 'volume', 'surface_area', 'xy_area', 'density', 'pca_z_cosine',
                     'principal_camera_cosine', 'velocity_camera_cosine', 'velocity_magnitude', 'acceleration_magnitude',
                     'angle_change', 'angle_speed']
-    model_all = RandomForestModel(features_all, 'object_type', n_estimators=50)
-    model_all.load_data('train_features.csv', 'test_features.csv')
-    model_all.train()
-    model_all.evaluate()
+
+    model = RandomForestModel(features, 'object_type', n_estimators=n_estimators, random_state=random_state)
+    model.load_data('train_features.csv', 'test_features.csv')
+    model.train()
+    #model.evaluate()
+    return model
+
+
+if __name__ == "__main__":
+    static = model_generator(mode='static')
+    full = model_generator(mode='full')

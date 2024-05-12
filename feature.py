@@ -1,11 +1,11 @@
 import numpy as np
-
+from data import test_extract
 
 class ObjectHandler:
     def __init__(self, frame_data):
         self.frame_data = frame_data
-        self.poses = self.pose_sequence()
-        self.times = self.timestamp_sequence()
+        self.poses = self.pose_sequence(frame_data)
+        self.times = self.timestamp_sequence(frame_data)
         (self.camera_movement, self.camera_velocity, self.camera_acceleration,
          self.camera_angle_change, self.camera_angle_change_speed) = self.camera_movement_sequence()
         self.obj = []
@@ -23,11 +23,13 @@ class ObjectHandler:
                 sequence.append(None)
         self.obj = sequence
 
-    def timestamp_sequence(self):
-        return [frame['pose']['timestamp'] for frame in self.frame_data]
+    @staticmethod
+    def timestamp_sequence(frame_data):
+        return [frame['pose']['timestamp'] for frame in frame_data]
 
-    def pose_sequence(self):
-        return [frame['pose']['position'] for frame in self.frame_data]
+    @staticmethod
+    def pose_sequence(frame_data):
+        return [frame['pose']['position'] for frame in frame_data]
 
     def camera_movement_sequence(self):
         camera_location_vectors = np.array([[point['x'], point['y'], point['z']] for point in self.poses])
@@ -282,5 +284,84 @@ class ObjectFeaturesExtractor:
         return np.array([angle_changes[0]] + angle_changes)  # 第一个时间点没有前一个速度，可以标记为0或其他适当的值
 
 
+class StaticFeaturesExtractor:
+    def __init__(self, dataset):
+        """
+        初始化静态特征提取器
+        :param dataset: 结构化数据
+        """
+        self.tools = ObjectFeaturesExtractor
+        self.frame_data = dataset
+
+    def extract_features(self):
+        """
+        提取所有点云的静态特征
+        :return: 包含每个对象特征的列表
+        """
+
+        features_list = []
+        for data in self.frame_data:
+            features = self.compute_static_features(data)
+            features_list.append(features)
+        return features_list
+
+    @staticmethod
+    def compute_geometric_center(point_cloud):
+        """
+        计算点云的几何中心。
+        :param point_cloud: Open3D 点云对象。
+        :return: 几何中心的坐标 (numpy.ndarray)。
+        """
+        # 将点云的点转换为 NumPy 数组
+        points = np.asarray(point_cloud.points)
+
+        # 计算所有点的平均位置
+        geometric_center = np.mean(points, axis=0)
+
+        return geometric_center
+
+    def compute_static_features(self, dataset):
+        """
+        利用已有方法计算单个点云的静态特征
+        :param dataset: 单个对象的点云
+        :return: 特征字典
+        """
+        features_list = []
+        for obj in dataset['extract_obj']:
+            if np.asarray(obj.points).shape[0] < 5:
+                continue
+
+            features = {}
+            # 调用 ObjectFeaturesExtractor 的方法计算边界框尺寸
+
+            pca_z_cosine, principal_axis = self.tools.compute_main_axis(obj)
+
+            density, obb_extent, surface_area, volume = self.tools.compute_size(obj)
+
+            density /= self.tools.distance_between_points([dataset['pose']['position'],
+                                                           self.compute_geometric_center(obj)]) ** 2
+
+            height, length, width, xy_area = self.tools.determine_3d_value(obb_extent, pca_z_cosine)
+
+            # 宽度，高度，长度
+            features['width'], features['height'], features['length'] = width, height, length
+            # 体积
+            features['volume'] = volume
+            # 表面积
+            features['surface_area'] = surface_area
+            # XY平面面积
+            features['xy_area'] = xy_area
+            # 密度
+            features['density'] = density
+            # 计算PCA的Z轴余弦相似度
+            features['pca_z_cosine'] = pca_z_cosine
+
+            features_list.append(features)
+
+        return features_list
+
+
 if __name__ == '__main__':
-    pass
+    frame_data = test_extract()
+    static_extractor = StaticFeaturesExtractor(frame_data)
+    static_extractor.extract_features()
