@@ -191,8 +191,13 @@ class ObjectFeaturesExtractor:
                 'acceleration_magnitude': acceleration_magnitude,
                 'object_type': label['object_type'],
                 'angle_change': angle_change,
-                'angle_speed': angle_speed
+                'angle_speed': angle_speed,
+                'location_x': label['position']['x'],
+                'location_y': label['position']['y'],
+                'location_z': label['position']['z'],
+                'timestamp': self.timestamps[i]
             }
+
             features.append(feature_vector)
 
         return features
@@ -362,9 +367,6 @@ class StaticFeaturesExtractor:
             features['location_y'] = center_location[1]
             features['location_z'] = center_location[2]
 
-            features['location_x'] = center_location[0]
-            features['location_y'] = center_location[1]
-            features['location_z'] = center_location[2]
             features['timestamp'] = dataset['pose']['timestamp']
             features_list.append(features)
 

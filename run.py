@@ -13,16 +13,16 @@ class Task:
     def prepare_data(self):
         train_set, test_set = self.split_dataset()
 
-        #train_features = self.extract_dataset_feature(train_set)
-        #test_features = self.extract_dataset_feature(test_set)
+        train_features = self.extract_dataset_feature(train_set)
+        test_features = self.extract_dataset_feature(test_set)
 
-        #self.save_data(train_features, 'train_features.csv')
-        #self.save_data(test_features, 'test_features.csv')
+        self.save_data(train_features, 'train_features.csv')
+        self.save_data(test_features, 'test_features.csv')
 
-        static_test_features = self.process_static_feature(test_set)
-        self.save_data(static_test_features, 'static_test_features.csv')
+        #static_test_features = self.process_static_feature(test_set)
+        #self.save_data(static_test_features, 'static_test_features.csv')
 
-        print(static_test_features)
+        #print(static_test_features)
 
     def split_dataset(self):
         file_path = f"{self.base_dir}/tracking_train_label"
