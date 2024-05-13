@@ -71,7 +71,7 @@ class Task:
     def tracking(self):
         static_rf_model = self.load_model(self.static_model_path)  # 假设已经加载了训练好的模型
         full_rf_model = self.load_model(self.full_model_path)  # 假设已经加载了训练好的模型
-        tracker = ObjectTracker(self.static_feature_path, static_rf_model, full_rf_model)
+        tracker = ObjectTracker(static_rf_model, full_rf_model)
         df = self.read_all_sheets(self.static_feature_path)
 
         tracker.update_tracking(df)  # 更新跟踪信息
