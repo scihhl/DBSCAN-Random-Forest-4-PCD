@@ -307,7 +307,7 @@ class StaticFeaturesExtractor:
         features_list = []
         for data in self.frame_data:
             features = self.compute_static_features(data)
-            features_list.append(features)
+            features_list += features
         return features_list
 
     @staticmethod
