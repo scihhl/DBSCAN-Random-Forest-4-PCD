@@ -226,11 +226,10 @@ class FrameDataProcessor:
             self.collect_object_points(frame_data)
             frame_data = self.traverse_points(frame_data, file_id)
             all_data.append(frame_data)
-        # temp = []
-        # for frame_data in all_data:
-        #    temp += [frame_data['point_cloud']] + [label['bbox'] for label in frame_data['labels']]
-        # visualization(temp)
-        return all_data
+        temp = []
+        for frame_data in all_data:
+            temp += [frame_data['point_cloud']]
+        return all_data, temp
 
     @staticmethod
     def numeric_sort_key(ids):
@@ -333,7 +332,6 @@ class FrameDataProcessor:
         return global_heading
 
 
-
 class PointCloudManager:
     def __init__(self, point_cloud):
         self.point_cloud = point_cloud
@@ -347,8 +345,10 @@ class PointCloudManager:
         :param heading: The heading angle of the object around the z-axis in radians.
         :return: An OrientedBoundingBox object.
         """
-        center = np.array([position['x'], position['y'], position['z']])
-
+        if isinstance(position, dict):
+            center = np.array([position['x'], position['y'], position['z']])
+        else:
+            center = np.array(position)
         # If size is a dictionary, convert it to an array and divide by 2
         if isinstance(size, dict):
             extent = np.array([size['length'], size['width'], size['height']])
@@ -394,6 +394,38 @@ class PointCloudManager:
                 object_points)
             label['bbox'] = bbox
 
+    @staticmethod
+    def quaternion_to_rotation_matrix(quaternion):
+        """
+        Convert a quaternion to a rotation matrix.
+        :param quaternion: A numpy array representing the quaternion [w, x, y, z].
+        :return: A 3x3 rotation matrix.
+        """
+        w, x, y, z = quaternion
+        return np.array([
+            [1 - 2*y**2 - 2*z**2, 2*x*y - 2*z*w, 2*x*z + 2*y*w],
+            [2*x*y + 2*z*w, 1 - 2*x**2 - 2*z**2, 2*y*z - 2*x*w],
+            [2*x*z - 2*y*w, 2*y*z + 2*x*w, 1 - 2*x**2 - 2*y**2]
+        ])
+
+    @staticmethod
+    def calculate_heading_from_quaternion(camera_position, camera_quaternion, object_position):
+        """
+        Calculate the heading angle from the camera's quaternion.
+        :param camera_position: The position of the camera (x, y, z).
+        :param camera_quaternion: The quaternion of the camera [w, x, y, z].
+        :param object_position: The position of the object (x, y, z).
+        :return: The heading angle in radians.
+        """
+        # Transform object position into camera coordinate system
+        cam_rot_matrix = PointCloudManager.quaternion_to_rotation_matrix(camera_quaternion)
+        relative_position = np.array(object_position) - np.array(camera_position)
+        transformed_position = cam_rot_matrix.dot(relative_position[:3])
+
+        # Calculate angle in 2D plane
+        angle = np.arctan2(transformed_position[1], transformed_position[0])
+        return angle
+
 
 class PCDObjectExtractor(FrameDataProcessor):
     def __init__(self, base_dir, frame_id):
@@ -407,7 +439,7 @@ class PCDObjectExtractor(FrameDataProcessor):
         :param min_points: 形成一个聚类所需的最小点数
         :return: 包含各个物体点云的列表
         """
-        frame_data = self.load_all_frame_data()
+        frame_data, _ = self.load_all_frame_data()
 
         for data in frame_data:
             labels = np.array(data['point_cloud'].cluster_dbscan(eps=eps, min_points=min_points, print_progress=False))
@@ -454,7 +486,7 @@ def test_frame():
     frame_id = '9048_3'
 
     processor = FrameDataProcessor(base_dir, frame_id)
-    frame_data = processor.load_all_frame_data()
+    frame_data, _ = processor.load_all_frame_data()
 
     for i, frame in enumerate(frame_data):
         print(f'for No.{i} frame we have:')

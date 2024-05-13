@@ -195,7 +195,10 @@ class ObjectFeaturesExtractor:
                 'location_x': label['position']['x'],
                 'location_y': label['position']['y'],
                 'location_z': label['position']['z'],
-                'timestamp': self.timestamps[i]
+                'timestamp': self.timestamps[i],
+                'principal_axis_x': principal_axis[0],
+                'principal_axis_y': principal_axis[1],
+                'principal_axis_z': principal_axis[2],
             }
 
             features.append(feature_vector)
@@ -378,6 +381,11 @@ class StaticFeaturesExtractor:
             features['camera_location_x'] = dataset['pose']['position']['x']
             features['camera_location_y'] = dataset['pose']['position']['y']
             features['camera_location_z'] = dataset['pose']['position']['z']
+
+            features['camera_quaternion_x'] = dataset['pose']['quaternion']['x']
+            features['camera_quaternion_y'] = dataset['pose']['quaternion']['y']
+            features['camera_quaternion_z'] = dataset['pose']['quaternion']['z']
+            features['camera_quaternion_w'] = dataset['pose']['quaternion']['w']
 
             features_list.append(features)
 

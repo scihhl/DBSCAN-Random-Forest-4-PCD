@@ -1,11 +1,14 @@
 import os
-from data import PCDObjectExtractor
+
+import numpy as np
+
+from data import PCDObjectExtractor, FrameDataProcessor, visualization, PointCloudManager
 from feature import ObjectHandler, ObjectFeaturesExtractor, StaticFeaturesExtractor
-from data import FrameDataProcessor
 import pandas as pd
 from random_forest import RandomForestModel
 import pickle
 from track import ObjectTracker
+
 
 class Task:
     def __init__(self, base='data'):
@@ -22,6 +25,7 @@ class Task:
                              'principal_camera_cosine', 'velocity_camera_cosine', 'velocity_magnitude',
                              'acceleration_magnitude',
                              'angle_change', 'angle_speed']
+
     def prepare_data(self):
         self.extract_dataset_feature(self.train_set, filename=self.train_data_path)
         self.extract_dataset_feature(self.test_set, filename=self.test_data_path)
@@ -56,7 +60,7 @@ class Task:
             features.append([])
             frame_ids.append(frame_id)
             processor = FrameDataProcessor(self.base_dir, frame_id)
-            frame_data = processor.load_all_frame_data()
+            frame_data, _ = processor.load_all_frame_data()
             targets = ObjectHandler.all_obj(frame_data)
             handler = ObjectHandler(frame_data)
             for target in targets:
@@ -77,13 +81,37 @@ class Task:
     def tracking(self):
         static_rf_model = self.load_model(self.static_model_path)  # 假设已经加载了训练好的模型
         full_rf_model = self.load_model(self.full_model_path)  # 假设已经加载了训练好的模型
-        tracker = ObjectTracker()
+
         df = self.read_all_sheets(self.static_feature_path)
-        tracker.preprocess_data(df, static_rf_model, self.static_feature)
-        tracker.update_tracking(df, static_rf_model, self.static_feature)  # 更新跟踪信息
-        tracked_objects = tracker.compute_motion_features()
-        res = tracker.update_tracking(tracked_objects, full_rf_model, self.full_feature)
-        print(res)
+        static_tracker = ObjectTracker(static_rf_model, self.static_feature, df)
+        static_tracker.update_tracking()
+        df = static_tracker.compute_motion_features()
+        df.reset_index(drop=True)
+
+        full_tracker = ObjectTracker(full_rf_model, self.full_feature, df)
+        res = full_tracker.df
+        res.reset_index(drop=True)
+
+        unique_sheets = res['SheetName'].unique()
+        for sheet in unique_sheets:
+            filtered_res = res[res['SheetName'] == sheet].copy()
+            filtered_res.reset_index(drop=True)
+
+            _, temp = FrameDataProcessor(self.base_dir, sheet).load_all_frame_data()
+
+            for row in filtered_res.itertuples():
+                camera_position = [row.camera_location_x, row.camera_location_y, row.camera_location_z]
+                camera_quaternion = [row.camera_quaternion_w, row.camera_quaternion_x, row.camera_quaternion_y,
+                                     row.camera_quaternion_z]
+                object_position = [row.location_x, row.location_y, row.location_z]
+                object_size = [row.length, row.width, row.height]
+                heading = PointCloudManager.calculate_heading_from_quaternion(camera_position, camera_quaternion,
+                                                                              object_position)
+                bbox = PointCloudManager.create_3d_bbox(object_position, object_size, heading)
+                temp += [bbox]
+            visualization(temp)
+
+
 
 
     @staticmethod

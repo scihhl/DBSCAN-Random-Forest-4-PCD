@@ -4,24 +4,76 @@ from scipy.optimize import linear_sum_assignment
 from sklearn.preprocessing import StandardScaler
 from feature import ObjectFeaturesExtractor
 
-
 class ObjectTracker:
-    def __init__(self):
-        self.tracked_objects = pd.DataFrame(columns=['SheetName', 'object_id'])
-        self.next_object_id = 1  # 在构造函数中正确初始化 object_id 计数器
+    def __init__(self, model, feature, df):
+        self.next_object_id = 1
         self.object_appearance_count = {}
-        self.all_tracked_frames = []
+        self.model = model
+        self.feature = feature
+        self.df = df
         self.tools = ObjectFeaturesExtractor
+        self.all_tracked_frames = []
+
+        self.preprocess_data()
+        if 'velocity_magnitude' not in feature:
+            self.df['object_id'] = np.arange(len(self.df))
+        self.count_id = [0 for _ in range(len(self.df))]
+
+
 
     @staticmethod
-    def calculate_euclidean_distance(obj1, obj2):
-        return np.linalg.norm(obj1 - obj2)
+    def calculate_euclidean_distance(frame_n, frame_n_plus_1):
+        # 只使用三维空间坐标来计算欧氏距离
+        loc_features = ['location_x', 'location_y', 'location_z']
+        positions_n = frame_n[loc_features].values
+        positions_n1 = frame_n_plus_1[loc_features].values
+
+        # 使用广播计算所有配对的距离
+        diff = positions_n[:, np.newaxis, :] - positions_n1[np.newaxis, :, :]
+        distances = np.linalg.norm(diff, axis=2)
+        return distances
+
+    @staticmethod
+    def calculate_cosine_similarities(features1, features2, weights):
+        # 应用权重
+        weighted_features1 = features1 * weights
+        weighted_features2 = features2 * weights
+
+        # 正规化特征
+        norm_features1 = weighted_features1 / np.linalg.norm(weighted_features1, axis=1, keepdims=True)
+        norm_features2 = weighted_features2 / np.linalg.norm(weighted_features2, axis=1, keepdims=True)
+
+        # 计算余弦相似度
+        cosine_similarities = np.dot(norm_features1, norm_features2.T)  # 注意使用转置
+        return cosine_similarities
 
     @staticmethod
     def standardize_features(dataframe, model_features):
-        # 仅对模型特征进行标准化
-        dataframe[model_features] = StandardScaler().fit_transform(dataframe[model_features])
+        scaler = StandardScaler()
+        dataframe[model_features] = scaler.fit_transform(dataframe[model_features])
         return dataframe
+
+    def build_cost_matrix(self, frame_n, frame_n_plus_1):
+        weights = self.get_feature_weights(self.model)  # Assuming this method returns feature weights
+
+        # Standardize features
+        frame_n = self.standardize_features(frame_n.copy(), self.feature)
+        frame_n_plus_1 = self.standardize_features(frame_n_plus_1.copy(), self.feature)
+
+        # Compute distances and similarities
+        distances = self.calculate_euclidean_distance(frame_n, frame_n_plus_1)
+        cosine_similarities = self.calculate_cosine_similarities(frame_n[self.feature], frame_n_plus_1[self.feature], weights)
+
+        label_mismatch_penalty = 10 * (frame_n['label'].values[:, None] != frame_n_plus_1['label'].values[None, :])
+
+        # Calculate the cost matrix
+        cost_matrix = distances + (1 - cosine_similarities) * 5 + label_mismatch_penalty
+        return cost_matrix
+
+    def preprocess_data(self):
+        self.df['label'] = self.model.predict(self.df[self.feature])
+        self.df = self.df[self.df['label'] != 6]
+        self.df = self.df.reset_index(drop=True)
 
     @staticmethod
     def get_feature_weights(rf_model):
@@ -30,107 +82,46 @@ class ObjectTracker:
         normalized_feature_weights = feature_weights / total_importance
         return normalized_feature_weights
 
-    @staticmethod
-    def calculate_weighted_cosine_similarity(vec1, vec2, weights):
-        weighted_vec1 = vec1 * weights
-        weighted_vec2 = vec2 * weights
-        dot_product = np.dot(weighted_vec1, weighted_vec2)
-        norm1 = np.linalg.norm(weighted_vec1)
-        norm2 = np.linalg.norm(weighted_vec2)
-        return dot_product / (norm1 * norm2) if (norm1 != 0 and norm2 != 0) else 0
+    def update_tracking(self):
+        # 按SheetName和timestamp排序并分组处理
+        df_sorted = self.df.sort_values(['SheetName', 'timestamp'])
+        df_sorted = df_sorted.reset_index(drop=True)
 
-    def build_cost_matrix(self, frame_n, frame_n_plus_1, random_forest_model, model_features):
-
-        # 获取权重
-        weights = self.get_feature_weights(random_forest_model)
-
-        # 重置索引以确保索引连续
-        frame_n = frame_n.reset_index(drop=True)
-        frame_n_plus_1 = frame_n_plus_1.reset_index(drop=True)
-
-        # 标准化特征
-        frame_n = self.standardize_features(frame_n, model_features)
-        frame_n_plus_1 = self.standardize_features(frame_n_plus_1, model_features)
-
-        # 预测标签
-        frame_n['label'] = random_forest_model.predict(frame_n[model_features])
-        frame_n_plus_1['label'] = random_forest_model.predict(frame_n_plus_1[model_features])
-
-        num_objects_n = frame_n.shape[0]
-        num_objects_n1 = frame_n_plus_1.shape[0]
-        cost_matrix = np.zeros((num_objects_n, num_objects_n1))
-
-        for i in range(num_objects_n):
-            for j in range(num_objects_n1):
-                distance = self.calculate_euclidean_distance(frame_n.iloc[i][model_features],
-                                                             frame_n_plus_1.iloc[j][model_features])
-                cosine_similarity = self.calculate_weighted_cosine_similarity(
-                    frame_n.iloc[i][model_features].values, frame_n_plus_1.iloc[j][model_features].values, weights
-                )
-                label_mismatch_penalty = 20 if frame_n.iloc[i]['label'] != frame_n_plus_1.iloc[j]['label'] else 0
-
-                cost_matrix[i, j] = distance + (1 - cosine_similarity) * 20 + label_mismatch_penalty
-
-        return cost_matrix
-
-    @staticmethod
-    def preprocess_data(df, model, model_features):
-        # 预测标签
-        df['label'] = model.predict(df[model_features])
-        # 剔除标签为6的数据
-        df = df[df['label'] != 6]
-        return df
-
-    def update_tracking(self, df, random_forest_model, feature):
-
-        df_sorted = df.sort_values(['SheetName', 'timestamp'])
         grouped_by_sheet = df_sorted.groupby('SheetName')
 
         for sheet_name, sheet_data in grouped_by_sheet:
             previous_frame = None
+            x = 0
             for timestamp, current_frame in sheet_data.groupby('timestamp'):
-                current_frame = current_frame.reset_index(drop=True)  # 重置索引以保证连续性
-
                 if previous_frame is not None:
-                    cost_matrix = self.build_cost_matrix(previous_frame, current_frame, random_forest_model, feature)
+                    n = previous_frame.shape[0]
+
+                    cost_matrix = self.build_cost_matrix(previous_frame, current_frame)
                     row_ind, col_ind = linear_sum_assignment(cost_matrix)
 
-                    matched_indices = np.full(len(current_frame), False)
+                    # 初始化当前帧的object_id
                     for row, col in zip(row_ind, col_ind):
-                        if cost_matrix[row, col] < 20:  # 使用阈值
-                            obj_id = previous_frame.loc[row, 'object_id']
-                            current_frame.loc[col, 'object_id'] = obj_id
-                            matched_indices[col] = True
-                            self.object_appearance_count[obj_id] = self.object_appearance_count.get(obj_id, 0) + 1
 
-                    for i in np.where(~matched_indices)[0]:
-                        current_frame.loc[i, 'object_id'] = self.next_object_id
-                        self.object_appearance_count[self.next_object_id] = 1
-                        self.next_object_id += 1
-                else:
-                    # 为第一帧中的每个对象初始化一个新的ID
-                    for i in range(len(current_frame)):
-                        current_frame.loc[i, 'object_id'] = self.next_object_id
-                        self.object_appearance_count[self.next_object_id] = 1
-                        self.next_object_id += 1
+                        if cost_matrix[row, col] < 10:
+                            current_frame.at[x + n + col, 'object_id'] = previous_frame.at[x + row, 'object_id']
+                            self.count_id[current_frame.at[x + n + col, 'object_id']] += 1
+                    x += n
+                previous_frame = current_frame
+                self.df.update(current_frame)
 
-                previous_frame = current_frame.copy()
-                self.all_tracked_frames.append(current_frame)
-
-        # 结束追踪后剔除未达到出现阈值的物体
-        self.tracked_objects = pd.concat(self.all_tracked_frames, ignore_index=True)
-        valid_ids = {k for k, v in self.object_appearance_count.items() if v >= 2}
-        self.tracked_objects = self.tracked_objects[self.tracked_objects['object_id'].isin(valid_ids)]
-        return self.tracked_objects
+        # 最后，删除那些只出现一次的对象
+        valid_ids = [i for i, v in enumerate(self.count_id) if v > 3]
+        self.df = self.df[self.df['object_id'].isin(valid_ids)]
+        self.df.reset_index(drop=True)
 
     def compute_motion_features(self):
-        grouped_data = self.tracked_objects.groupby('object_id')
-        self.tracked_objects['principal_camera_cosine'] = np.nan
-        self.tracked_objects['velocity_camera_cosine'] = np.nan
-        self.tracked_objects['velocity_magnitude'] = np.nan
-        self.tracked_objects['acceleration_magnitude'] = np.nan
-        self.tracked_objects['angle_change'] = np.nan
-        self.tracked_objects['angle_speed'] = np.nan
+        grouped_data = self.df.groupby('object_id')
+        self.df['principal_camera_cosine'] = np.nan
+        self.df['velocity_camera_cosine'] = np.nan
+        self.df['velocity_magnitude'] = np.nan
+        self.df['acceleration_magnitude'] = np.nan
+        self.df['angle_change'] = np.nan
+        self.df['angle_speed'] = np.nan
 
         for object_id, group in grouped_data:
             if len(group) > 1:  # 确保有足够的数据点来计算运动特征
@@ -151,12 +142,12 @@ class ObjectTracker:
 
                 idx = group.index
                 for i in range(len(group)):
-                    self.tracked_objects.at[idx[i], 'principal_camera_cosine'] = \
+                    self.df.at[idx[i], 'principal_camera_cosine'] = \
                         abs(self.tools.compute_cosine_similarity(principal_axis[i], camera_velocities[i]))
-                    self.tracked_objects.at[idx[i], 'velocity_camera_cosine'] = \
+                    self.df.at[idx[i], 'velocity_camera_cosine'] = \
                         abs(self.tools.compute_cosine_similarity(velocities[i], camera_velocities[i]))
-                    self.tracked_objects.at[idx[i], 'velocity_magnitude'] = velocity_magnitudes[i]
-                    self.tracked_objects.at[idx[i], 'acceleration_magnitude'] = acceleration_magnitudes[i]
-                    self.tracked_objects.at[idx[i], 'angle_change'] = angle_changes[i]
-                    self.tracked_objects.at[idx[i], 'angle_speed'] = angle_speeds[i]
-        return self.tracked_objects
+                    self.df.at[idx[i], 'velocity_magnitude'] = velocity_magnitudes[i]
+                    self.df.at[idx[i], 'acceleration_magnitude'] = acceleration_magnitudes[i]
+                    self.df.at[idx[i], 'angle_change'] = angle_changes[i]
+                    self.df.at[idx[i], 'angle_speed'] = angle_speeds[i]
+        return self.df
