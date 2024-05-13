@@ -15,7 +15,13 @@ class Task:
         self.static_model_path = 'temp/static_random_forest_model.pkl'
         self.full_model_path = 'temp/full_random_forest_model.pkl'
         self.static_feature_path = 'temp/static_test_features.xlsx'
-
+        self.static_feature = ['length', 'width', 'height', 'volume', 'surface_area', 'xy_area', 'density',
+                               'pca_z_cosine']
+        self.full_feature = ['length', 'width', 'height', 'volume', 'surface_area', 'xy_area', 'density',
+                             'pca_z_cosine',
+                             'principal_camera_cosine', 'velocity_camera_cosine', 'velocity_magnitude',
+                             'acceleration_magnitude',
+                             'angle_change', 'angle_speed']
     def prepare_data(self):
         self.extract_dataset_feature(self.train_set, filename=self.train_data_path)
         self.extract_dataset_feature(self.test_set, filename=self.test_data_path)
@@ -63,20 +69,21 @@ class Task:
     def generate_random_forest_model(self):
         train_data = self.read_all_sheets(self.train_data_path)
         test_data = self.read_all_sheets(self.test_data_path)
-        static = self.model_generator(train_data, test_data, mode='static', n_estimators=50, random_state=42)
-        full = self.model_generator(train_data, test_data, mode='full', n_estimators=50, random_state=42)
+        static = self.model_generator(train_data, test_data, self.static_feature, n_estimators=50, random_state=42)
+        full = self.model_generator(train_data, test_data, self.full_feature, n_estimators=50, random_state=42)
         self.save_model(static, self.static_model_path)
         self.save_model(full, self.full_model_path)
 
     def tracking(self):
         static_rf_model = self.load_model(self.static_model_path)  # 假设已经加载了训练好的模型
         full_rf_model = self.load_model(self.full_model_path)  # 假设已经加载了训练好的模型
-        tracker = ObjectTracker(static_rf_model, full_rf_model)
+        tracker = ObjectTracker()
         df = self.read_all_sheets(self.static_feature_path)
-
-        tracker.update_tracking(df)  # 更新跟踪信息
-        tracker.classify_objects()  # 重新分类物体
-
+        tracker.preprocess_data(df, static_rf_model, self.static_feature)
+        tracker.update_tracking(df, static_rf_model, self.static_feature)  # 更新跟踪信息
+        tracked_objects = tracker.compute_motion_features()
+        res = tracker.update_tracking(tracked_objects, full_rf_model, self.full_feature)
+        print(res)
 
 
     @staticmethod
@@ -136,15 +143,7 @@ class Task:
         return directories
 
     @staticmethod
-    def model_generator(train_data, test_data, mode='static', n_estimators=50, random_state=42):
-        if mode == 'static':
-            features = ['length', 'width', 'height', 'volume', 'surface_area', 'xy_area', 'density', 'pca_z_cosine']
-        else:
-            features = ['length', 'width', 'height', 'volume', 'surface_area', 'xy_area', 'density', 'pca_z_cosine',
-                        'principal_camera_cosine', 'velocity_camera_cosine', 'velocity_magnitude',
-                        'acceleration_magnitude',
-                        'angle_change', 'angle_speed']
-
+    def model_generator(train_data, test_data, features, n_estimators=50, random_state=42):
         model = RandomForestModel(features, 'object_type', n_estimators=n_estimators, random_state=random_state)
         model.input_data(train_data, test_data)
         model.train()

@@ -171,7 +171,7 @@ class ObjectFeaturesExtractor:
             height, length, width, xy_area = self.determine_3d_value(obb_extent, pca_z_cosine)
 
             (acceleration_magnitude, angle_change, angle_speed, obj_acceleration, obj_velocity,
-             principal_camera_cosine, velocity_camera_cosine, velocity_magnitude) = self.computer_obj_motion(
+             principal_camera_cosine, velocity_camera_cosine, velocity_magnitude) = self.compute_obj_motion(
                 acceleration_magnitudes, i, label_id, obj_accelerations, obj_angle_changes, obj_angle_speeds,
                 obj_movements, obj_velocities, principal_axis, velocity_magnitudes)
 
@@ -202,8 +202,8 @@ class ObjectFeaturesExtractor:
 
         return features
 
-    def computer_obj_motion(self, acceleration_magnitudes, i, label_id, obj_accelerations, obj_angle_changes,
-                            obj_angle_speeds, obj_movements, obj_velocities, principal_axis, velocity_magnitudes):
+    def compute_obj_motion(self, acceleration_magnitudes, i, label_id, obj_accelerations, obj_angle_changes,
+                           obj_angle_speeds, obj_movements, obj_velocities, principal_axis, velocity_magnitudes):
         # 速度与加速度的向量
         obj_movement, obj_velocity, obj_acceleration = (
             obj_movements[label_id], obj_velocities[label_id], obj_accelerations[label_id])
@@ -223,8 +223,10 @@ class ObjectFeaturesExtractor:
         object_time = [self.timestamps[i] for i, _ in label_sequence]
         obj_movements, obj_velocities, obj_accelerations, obj_angle_changes, obj_angle_speeds = (
             self.compute_movement(object_location, object_time))
+
         velocity_magnitudes = np.linalg.norm(obj_velocities, axis=1)
         acceleration_magnitudes = np.linalg.norm(obj_accelerations, axis=1)
+
         return (acceleration_magnitudes, obj_accelerations, obj_angle_changes,
                 obj_angle_speeds, obj_movements, obj_velocities, velocity_magnitudes)
 
@@ -361,6 +363,10 @@ class StaticFeaturesExtractor:
             # 密度
             features['density'] = density
             # 计算PCA的Z轴余弦相似度
+            features['principal_axis_x'] = principal_axis[0]
+            features['principal_axis_y'] = principal_axis[1]
+            features['principal_axis_z'] = principal_axis[2]
+
             features['pca_z_cosine'] = pca_z_cosine
 
             features['location_x'] = center_location[0]
@@ -368,6 +374,11 @@ class StaticFeaturesExtractor:
             features['location_z'] = center_location[2]
 
             features['timestamp'] = dataset['pose']['timestamp']
+
+            features['camera_location_x'] = dataset['pose']['position']['x']
+            features['camera_location_y'] = dataset['pose']['position']['y']
+            features['camera_location_z'] = dataset['pose']['position']['z']
+
             features_list.append(features)
 
         return features_list
