@@ -483,10 +483,10 @@ def test_label():
 
 def test_frame():
     base_dir = 'data'
-    frame_id = '9048_3'
+    frame_id = '9061_1'
 
     processor = FrameDataProcessor(base_dir, frame_id)
-    frame_data, _ = processor.load_all_frame_data()
+    frame_data, temp = processor.load_all_frame_data()
 
     for i, frame in enumerate(frame_data):
         print(f'for No.{i} frame we have:')

@@ -182,9 +182,9 @@ class Task:
 if __name__ == '__main__':
     task = Task()
     #task.prepare_data()
-    #task.prepare_static_feature()
+    task.prepare_static_feature()
     #task.generate_random_forest_model()
-    task.tracking()
+    #task.tracking()
 
 
 
