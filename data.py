@@ -431,27 +431,45 @@ class PCDObjectExtractor(FrameDataProcessor):
     def __init__(self, base_dir, frame_id):
         super().__init__(base_dir, frame_id)
 
-    def extract_objects(self, eps=0.5, min_points=20):
+    def extract_objects(self, eps=0.5, min_points=20, z_threshold=0.6):
         """
         提取指定帧的所有物体及其点云数据
-        :param frame_id: 帧的编号
         :param eps: DBSCAN的邻域半径
         :param min_points: 形成一个聚类所需的最小点数
+        :param z_threshold: Z轴过滤阈值
         :return: 包含各个物体点云的列表
         """
         frame_data, _ = self.load_all_frame_data()
 
-        for data in frame_data:
-            labels = np.array(data['point_cloud'].cluster_dbscan(eps=eps, min_points=min_points, print_progress=False))
+        # 计算所有点云数据中Z轴的第5百分位数
+        all_z_values = np.concatenate([np.asarray(data['point_cloud'].points)[:, 2] for data in frame_data])
+        percentile_z_value = np.percentile(all_z_values, 40)
 
-            # Extract clusters
+        # 计算过滤阈值
+        absolute_z_threshold = percentile_z_value + z_threshold
+
+        for data in frame_data:
+            point_cloud = data['point_cloud']
+            points = np.asarray(point_cloud.points)
+
+            # 过滤低于绝对阈值的点
+            filtered_points = points[points[:, 2] > absolute_z_threshold]
+            filtered_pcd = o3d.geometry.PointCloud()
+            filtered_pcd.points = o3d.utility.Vector3dVector(filtered_points)
+            #visualization([filtered_pcd])
+
+            labels = np.array(filtered_pcd.cluster_dbscan(eps=eps, min_points=min_points, print_progress=False))
+
+            # 提取聚类结果
             max_label = labels.max()
             extract_obj = []
             for i in range(max_label + 1):
-                points = np.asarray(data['point_cloud'].points)[labels == i]
+                cluster_points = filtered_points[labels == i]
                 object_pcd = o3d.geometry.PointCloud()
-                object_pcd.points = o3d.utility.Vector3dVector(points)
+                object_pcd.points = o3d.utility.Vector3dVector(cluster_points)
                 extract_obj.append(object_pcd)
+
+            #visualization(extract_obj)
             data['extract_obj'] = extract_obj
 
         return frame_data

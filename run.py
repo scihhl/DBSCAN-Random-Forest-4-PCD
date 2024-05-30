@@ -18,13 +18,10 @@ class Task:
         self.static_model_path = 'temp/static_random_forest_model.pkl'
         self.full_model_path = 'temp/full_random_forest_model.pkl'
         self.static_feature_path = 'temp/static_test_features.xlsx'
-        self.static_feature = ['length', 'width', 'height', 'volume', 'surface_area', 'xy_area', 'density',
-                               'pca_z_cosine']
-        self.full_feature = ['length', 'width', 'height', 'volume', 'surface_area', 'xy_area', 'density',
-                             'pca_z_cosine',
-                             'principal_camera_cosine', 'velocity_camera_cosine', 'velocity_magnitude',
-                             'acceleration_magnitude',
-                             'angle_change', 'angle_speed']
+        self.static_feature = ['length', 'width', 'height', 'volume', 'pca_z_cosine']
+        self.full_feature = ['length', 'width', 'height', 'volume',
+                             'pca_z_cosine', 'principal_camera_cosine', 'velocity_camera_cosine',
+                             'velocity_magnitude', 'acceleration_magnitude', 'angle_speed']
 
     def prepare_data(self):
         self.extract_dataset_feature(self.train_set, filename=self.train_data_path)
@@ -33,9 +30,8 @@ class Task:
     def split_dataset(self):
         file_path = f"{self.base_dir}/tracking_train_label"
         directories = self.list_directories(file_path)
-        n = len(directories)
-        train_set = directories[:4 * n // 5]
-        test_set = directories[4 * n // 5:]
+        train_set = directories[:-1]
+        test_set = [directories[-1]]
         return train_set, test_set
 
     def prepare_static_feature(self):
@@ -182,9 +178,9 @@ class Task:
 if __name__ == '__main__':
     task = Task()
     #task.prepare_data()
-    task.prepare_static_feature()
+    #task.prepare_static_feature()
     #task.generate_random_forest_model()
-    #task.tracking()
+    task.tracking()
 
 
 

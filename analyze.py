@@ -1,91 +1,84 @@
 import numpy as np
-from scipy.spatial.distance import euclidean, cosine
+import trimesh
+from scipy.spatial.distance import euclidean
+from pedestration_identify import PredestinationTracker
 
 
 class EvaluationMetrics:
-    def __init__(self, pred, true, iou_threshold=0.5):
-        self.pred = pred
-        self.true = true
+    def __init__(self, df_pred, df_true, iou_threshold=0.1):
+        self.df_pred = df_pred.sort_values(by='timestamp').reset_index(drop=True)
+        self.df_true = df_true.sort_values(by='timestamp').reset_index(drop=True)
         self.iou_threshold = iou_threshold
 
     @staticmethod
     def calculate_iou(bbox_pred, bbox_true):
-        x1 = max(bbox_pred[0], bbox_true[0])
-        y1 = max(bbox_pred[1], bbox_true[1])
-        x2 = min(bbox_pred[0] + bbox_pred[2], bbox_true[0] + bbox_true[2])
-        y2 = min(bbox_pred[1] + bbox_pred[3], bbox_true[1] + bbox_true[3])
-        inter_area = max(0, x2 - x1) * max(0, y2 - y1)
-        pred_area = bbox_pred[2] * bbox_pred[3]
-        true_area = bbox_true[2] * bbox_true[3]
-        union_area = pred_area + true_area - inter_area
-        return inter_area / union_area if union_area != 0 else 0
+        """Calculate the IoU of two oriented bounding boxes using trimesh."""
+        # Calculate the intersection volume
+        intersection_mesh = bbox_pred.intersection(bbox_true)
+        intersection_volume = intersection_mesh.volume if intersection_mesh.is_volume else 0
+
+        # Calculate the union volume
+        union_volume = bbox_pred.volume + bbox_true.volume - intersection_volume
+
+        # Calculate the IoU
+        iou = intersection_volume / union_volume if union_volume > 0 else 0
+        return iou
 
     @staticmethod
-    def calculate_position_error(pred_pos, true_pos):
-        return euclidean(pred_pos, true_pos)
-
-    @staticmethod
-    def calculate_category_accuracy(pred_cat, true_cat):
-        return 1 if pred_cat == true_cat else 0
-
-    @staticmethod
-    def calculate_feature_similarity(pred_vec, true_vec):
-        return 1 - cosine(pred_vec, true_vec)
-
-    def find_closest_object(self, pred_obj, true_objects):
-        min_distance = float('inf')
-        closest_obj = None
-        for obj in true_objects:
-            dist = euclidean(pred_obj['position'], obj['position'])
-            if dist < min_distance:
-                min_distance = dist
-                closest_obj = obj
-        return closest_obj
+    def create_oriented_bbox(center, dimensions, angles):
+        """Create an oriented bounding box using trimesh."""
+        obb = trimesh.primitives.Box(extents=dimensions,
+                                     transform=trimesh.transformations.euler_matrix(angles[0], angles[1], angles[2]))
+        obb.apply_translation(center)
+        return obb
 
     def evaluate(self):
-        total_true_positives = 0
-        total_false_positives = 0
-        total_false_negatives = 0
-        total_true = 0
+        grouped_pred = self.df_pred.groupby('timestamp')
+        grouped_true = self.df_true.groupby('timestamp')
+        results = {'position_error': [], 'iou': []}
+        matched_true_objects = set()
 
-        results = {'average_position_error': [], 'category_accuracy': [], 'average_iou': [],
-                   'feature_vector_similarity': []}
+        timestamps = set(grouped_pred.groups.keys()) & set(grouped_true.groups.keys())
 
-        for timestamp_pred, timestamp_true in zip(self.pred, self.true):
-            matched_true_objects = set()
-            for pred_obj in timestamp_pred:
-                closest_obj = self.find_closest_object(pred_obj, timestamp_true)
-                total_true += 1
+        for timestamp in timestamps:
+            df_pred_timestamp = grouped_pred.get_group(timestamp)
+            df_true_timestamp = grouped_true.get_group(timestamp)
+            n = df_pred_timestamp.iloc[0].name
+            closest_indices, min_distances = self.find_closest_matches(df_pred_timestamp, df_true_timestamp)
 
-                pos_error = self.calculate_position_error(pred_obj['position'], closest_obj['position'])
-                cat_accuracy = self.calculate_category_accuracy(pred_obj['category'], closest_obj['category'])
-                iou = self.calculate_iou(pred_obj.get('bbox', []), closest_obj.get('bbox', []))
-                similarity = self.calculate_feature_similarity(pred_obj['full_feature_vector'],
-                                                               closest_obj['full_feature_vector'])
+            for idx, pred_obj in df_pred_timestamp.iterrows():
+                if pred_obj['length'] > 10 or pred_obj['width'] > 5 or pred_obj['height'] > 5:
+                    continue
+                closest_idx = closest_indices[idx-n]
+                closest_obj = df_true_timestamp.iloc[closest_idx]
+                pred_bbox = self.create_oriented_bbox(pred_obj[['location_x', 'location_y', 'location_z']].values,
+                                                      pred_obj[['length', 'width', 'height']].values,
+                                                      pred_obj[['principal_axis_x', 'principal_axis_y',
+                                                                'principal_axis_z']].values)
+                true_bbox = self.create_oriented_bbox(closest_obj[['location_x', 'location_y', 'location_z']].values,
+                                                      closest_obj[['length', 'width', 'height']].values,
+                                                      closest_obj[['principal_axis_x', 'principal_axis_y',
+                                                                   'principal_axis_z']].values)
 
-                results['average_position_error'].append(pos_error)
-                results['category_accuracy'].append(cat_accuracy)
-                results['average_iou'].append(iou)
-                results['feature_vector_similarity'].append(similarity)
-
+                iou = self.calculate_iou(pred_bbox, true_bbox)
+                pos_error = euclidean(pred_obj[['location_x', 'location_y', 'location_z']].values,
+                                      closest_obj[['location_x', 'location_y', 'location_z']].values)
+                results['iou'].append(iou)
                 if iou >= self.iou_threshold:
-                    total_true_positives += cat_accuracy
-                    matched_true_objects.add(closest_obj)
-
-            total_false_positives += len(timestamp_pred) - len(matched_true_objects)
-            total_false_negatives += len(timestamp_true) - len(matched_true_objects)
-
-        precision = total_true_positives / (total_true_positives + total_false_positives) if (
-                (total_true_positives + total_false_positives) > 0) else 0
-        recall = total_true_positives / (total_true) if total_true > 0 else 0
-        accuracy = np.mean(results['category_accuracy']) if results['category_accuracy'] else 0
+                    results['position_error'].append(pos_error)
+                    matched_true_objects.add(closest_obj.name)
 
         metrics = {
-            'Mean Position Error': np.mean(results['average_position_error']),
-            'Category Accuracy': accuracy,
-            'Mean IoU': np.mean(results['average_iou']),
-            'Mean Feature Vector Similarity': np.mean(results['feature_vector_similarity']),
-            'Precision': precision,
-            'Recall': recall
+            'Mean Position Error': np.mean(results['position_error']),
+            'Mean IoU': np.mean(results['iou']),
+            'Precision': len(matched_true_objects) / self.df_pred['object_id'].nunique() if self.df_pred['object_id'].nunique() > 0 else 0,
+            'Recall': len(matched_true_objects) / self.df_true['object_id'].size if self.df_true['object_id'].size > 0 else 0
         }
         return metrics
+
+    @staticmethod
+    def find_closest_matches(df_pred, df_true):
+        distances = PredestinationTracker.calculate_euclidean_distance(df_pred, df_true)
+        closest_indices = np.argmin(distances, axis=1)
+        min_distances = np.min(distances, axis=1)
+        return closest_indices, min_distances
