@@ -3,6 +3,10 @@ from data import test_extract
 
 class ObjectHandler:
     def __init__(self, frame_data):
+        """
+        Initialize the ObjectHandler with frame data.
+        :param frame_data: List of dictionaries containing frame data.
+        """
         self.frame_data = frame_data
         self.poses = self.pose_sequence(frame_data)
         self.times = self.timestamp_sequence(frame_data)
@@ -11,6 +15,10 @@ class ObjectHandler:
         self.obj = []
 
     def object_sequence(self, target):
+        """
+        Create a sequence of objects for a specific target object ID across frames.
+        :param target: The target object ID to track.
+        """
         sequence = []
         for frame in self.frame_data:
             is_found = False
@@ -25,19 +33,38 @@ class ObjectHandler:
 
     @staticmethod
     def timestamp_sequence(frame_data):
+        """
+        Extract timestamps from frame data.
+        :param frame_data: List of dictionaries containing frame data.
+        :return: List of timestamps.
+        """
         return [frame['pose']['timestamp'] for frame in frame_data]
 
     @staticmethod
     def pose_sequence(frame_data):
+        """
+        Extract pose positions from frame data.
+        :param frame_data: List of dictionaries containing frame data.
+        :return: List of pose positions.
+        """
         return [frame['pose']['position'] for frame in frame_data]
 
     def camera_movement_sequence(self):
+        """
+        Compute camera movement, velocity, acceleration, angle change, and angle change speed.
+        :return: Tuple containing camera movement, velocity, acceleration, angle change, and angle change speed.
+        """
         camera_location_vectors = np.array([[point['x'], point['y'], point['z']] for point in self.poses])
         camera_time_vector = self.times
         return ObjectFeaturesExtractor.compute_movement(camera_location_vectors, camera_time_vector)
 
     @staticmethod
     def all_obj(frame_data):
+        """
+        Extract all unique object IDs from the frame data.
+        :param frame_data: List of dictionaries containing frame data.
+        :return: Set of unique object IDs.
+        """
         unique_object_ids = set()
 
         # 遍历列表中的每个元素（每个元素都是一个字典）
@@ -57,8 +84,8 @@ class ObjectHandler:
 class ObjectFeaturesExtractor:
     def __init__(self, handler: ObjectHandler):
         """
-        初始化特征提取器
-        :param handler: 对象处理器
+        Initialize the feature extractor with a given object handler.
+        :param handler: An object handler that contains the necessary data.
         """
         self.handler = handler
         self.point_clouds = handler.obj
@@ -70,20 +97,24 @@ class ObjectFeaturesExtractor:
     @staticmethod
     def compute_principal_axes(point_cloud):
         """
-        计算并返回点云的主成分（PCA）方向
+        Compute and return the principal components (PCA) directions of a point cloud.
+        :param point_cloud: An Open3D point cloud object.
+        :return: The principal axes (eigenvectors) of the point cloud.
         """
         points_matrix = np.asarray(point_cloud.points)
         mean = np.mean(points_matrix, axis=0)
         cov_matrix = np.cov((points_matrix - mean).T)
         eigenvalues, eigenvectors = np.linalg.eig(cov_matrix)
-        # 根据特征值排序，返回特征向量
+
         sort_indices = np.argsort(eigenvalues)[::-1]
         return eigenvectors[:, sort_indices]
 
     @staticmethod
     def compute_bounding_box(point_cloud):
         """
-        计算点云的边界框尺寸
+        Compute the bounding box dimensions of a point cloud.
+        :param point_cloud: An Open3D point cloud object.
+        :return: The dimensions of the oriented bounding box.
         """
         obb = point_cloud.get_oriented_bounding_box()
         return obb.extent
@@ -91,13 +122,21 @@ class ObjectFeaturesExtractor:
     @staticmethod
     def compute_density(point_cloud, volume):
         """
-        计算点云的密度
+        Compute the density of a point cloud.
+        :param point_cloud: The point cloud object.
+        :param volume: The volume of the bounding box.
+        :return: The density of the point cloud (points per unit volume).
         """
         points = np.asarray(point_cloud.points).shape[0]
         return points / volume if volume != 0 else 0
 
     @staticmethod
     def compute_diff(vector):
+        """
+        Compute the difference between consecutive elements of a vector.
+        :param vector: The input vector.
+        :return: A new vector of the same length containing the differences.
+        """
         diff_vectors = np.diff(vector, axis=0)
         # 创建一个新的数组，第一个位置用第一个差分向量填充
         extended_diff_vectors = np.empty_like(vector)
@@ -107,22 +146,43 @@ class ObjectFeaturesExtractor:
 
     @staticmethod
     def compute_timediff(timestamps):
+        """
+        Compute the time differences between consecutive timestamps.
+        :param timestamps: The input vector of timestamps.
+        :return: A new vector containing the time differences.
+        """
         time_intervals = np.diff(timestamps)
-        # 补充第一个时间间隔，假设第一个间隔与后面的间隔相同
         extended_time_intervals = np.insert(time_intervals, 0, time_intervals[0])
         return extended_time_intervals
 
     @staticmethod
     def compute_velocity(position_diff_vectors, extended_time_intervals):
-        # 由于 extended_time_intervals 已经与原始 timestamps 等长，我们直接使用整个数组进行广播
+        """
+        Compute the velocity vectors based on position differences and time intervals.
+        :param position_diff_vectors: The position difference vectors.
+        :param extended_time_intervals: The time intervals.
+        :return: The velocity vectors.
+        """
         return position_diff_vectors / extended_time_intervals[:, np.newaxis]
 
     @staticmethod
     def compute_acceleration(velocity_diff_vectors, extended_time_intervals):
+        """
+        Compute the acceleration vectors based on velocity differences and time intervals.
+        :param velocity_diff_vectors: The velocity difference vectors.
+        :param extended_time_intervals: The time intervals.
+        :return: The acceleration vectors.
+        """
         return velocity_diff_vectors / extended_time_intervals[:, np.newaxis]
 
     @staticmethod
     def compute_cosine_similarity(vector1, vector2):
+        """
+        Compute the cosine similarity between two vectors.
+        :param vector1: The first vector.
+        :param vector2: The second vector.
+        :return: The cosine similarity.
+        """
         dot_product = np.dot(vector1, vector2)
         norms_product = np.linalg.norm(vector1) * np.linalg.norm(vector2)
         cos_theta = dot_product / norms_product
@@ -130,6 +190,12 @@ class ObjectFeaturesExtractor:
 
     @staticmethod
     def compute_movement(location_vectors, time_vectors):
+        """
+        Compute the movement, velocity, and acceleration vectors, as well as angle changes and angle change speeds.
+        :param location_vectors: The position vectors.
+        :param time_vectors: The time vectors.
+        :return: Movement vectors, velocity vectors, acceleration vectors, angle changes, and angle change speeds.
+        """
         self = ObjectFeaturesExtractor
         movement = self.compute_diff(location_vectors)
         time_diff = self.compute_timediff(time_vectors)
@@ -144,14 +210,16 @@ class ObjectFeaturesExtractor:
         return movement, velocity, acceleration, angel_change, angel_change_speed
 
     def extract_features(self):
+        """
+        Extract features from the point clouds and associated data.
+        :return: A list of feature dictionaries for each object.
+        """
         features = []
-
-        # 摄像机运动向量计算（需要poses和timestamps）
 
         label_sequence = []
         for i, label in enumerate(self.point_clouds):
             if label is None:
-                continue  # 跳过无效的时间戳
+                continue
             label_sequence.append([i, label])
 
         (acceleration_magnitudes, obj_accelerations, obj_angle_changes,
@@ -159,7 +227,7 @@ class ObjectFeaturesExtractor:
             label_sequence)
 
         for label_id, (i, label) in enumerate(label_sequence):
-            # 获取点云和位置数据
+
             point_cloud = label['point_cloud']
 
             density, obb_extent, surface_area, volume = self.compute_size(point_cloud)
@@ -175,7 +243,7 @@ class ObjectFeaturesExtractor:
                 acceleration_magnitudes, i, label_id, obj_accelerations, obj_angle_changes, obj_angle_speeds,
                 obj_movements, obj_velocities, principal_axis, velocity_magnitudes)
 
-            # 收集所有特征
+
             feature_vector = {
                 'length': length,
                 'width': width,
@@ -196,9 +264,11 @@ class ObjectFeaturesExtractor:
                 'location_y': label['position']['y'],
                 'location_z': label['position']['z'],
                 'timestamp': self.timestamps[i],
+                'object_id': label['object_id'],
                 'principal_axis_x': principal_axis[0],
                 'principal_axis_y': principal_axis[1],
                 'principal_axis_z': principal_axis[2],
+
             }
 
             features.append(feature_vector)
@@ -207,20 +277,39 @@ class ObjectFeaturesExtractor:
 
     def compute_obj_motion(self, acceleration_magnitudes, i, label_id, obj_accelerations, obj_angle_changes,
                            obj_angle_speeds, obj_movements, obj_velocities, principal_axis, velocity_magnitudes):
-        # 速度与加速度的向量
+        """
+        Compute motion-related features for an object.
+        :param acceleration_magnitudes: List of acceleration magnitudes for objects.
+        :param i: Index of the current object.
+        :param label_id: Label ID of the object.
+        :param obj_accelerations: List of acceleration vectors for objects.
+        :param obj_angle_changes: List of angle changes for objects.
+        :param obj_angle_speeds: List of angle speeds for objects.
+        :param obj_movements: List of movement vectors for objects.
+        :param obj_velocities: List of velocity vectors for objects.
+        :param principal_axis: Principal axis vector.
+        :param velocity_magnitudes: List of velocity magnitudes for objects.
+        :return: Tuple containing motion features of the object.
+        """
+
         obj_movement, obj_velocity, obj_acceleration = (
             obj_movements[label_id], obj_velocities[label_id], obj_accelerations[label_id])
-        # 速度,加速度,角变化,角速度的值
+
         (velocity_magnitude, acceleration_magnitude,
          angle_change, angle_speed) = (velocity_magnitudes[label_id], acceleration_magnitudes[label_id],
                                        obj_angle_changes[label_id], obj_angle_speeds[label_id])
-        # 速度的方向与自身、相机的方向余弦相似度
+
         principal_camera_cosine = abs(self.compute_cosine_similarity(principal_axis, self.camera_velocity[i]))
         velocity_camera_cosine = abs(self.compute_cosine_similarity(obj_velocity, self.camera_velocity[i]))
         return (acceleration_magnitude, angle_change, angle_speed, obj_acceleration,
                 obj_velocity, principal_camera_cosine, velocity_camera_cosine, velocity_magnitude)
 
     def obj_movement_sequence(self, label_sequence):
+        """
+        Compute the movement sequence of an object based on its label sequence.
+        :param label_sequence: Sequence of labels for the object.
+        :return: Tuple containing movement-related features of the object.
+        """
         object_location = np.array([[label['position']['x'], label['position']['y'], label['position']['z']]
                                     for _, label in label_sequence])
         object_time = [self.timestamps[i] for i, _ in label_sequence]
@@ -235,6 +324,12 @@ class ObjectFeaturesExtractor:
 
     @staticmethod
     def determine_3d_value(obb_extent, pca_z_cosine):
+        """
+        Determine the 3D dimensions of an object based on its bounding box extent and PCA Z-axis cosine similarity.
+        :param obb_extent: Extent of the oriented bounding box (length, width, height).
+        :param pca_z_cosine: Cosine similarity between the principal axis and the Z-axis.
+        :return: Tuple containing the height, length, width, and XY area of the object.
+        """
         if pca_z_cosine >= 0.5:
             length, width, height = obb_extent[1], obb_extent[2], obb_extent[0]
         else:
@@ -245,11 +340,9 @@ class ObjectFeaturesExtractor:
     @staticmethod
     def distance_between_points(points):
         """
-        计算两点之间的距离
-        参数:
-        points：两点list
-        返回:
-        float, 两点之间的距离
+        Calculate the Euclidean distance between two points.
+        :param points: List containing two points, each represented as a dictionary or array.
+        :return: Euclidean distance between the points.
         """
         points = [[point["x"], point["y"], point["z"]] if type(point) is dict else point for point in points]
 
@@ -264,6 +357,11 @@ class ObjectFeaturesExtractor:
 
     @staticmethod
     def compute_main_axis(point_cloud):
+        """
+        Compute the principal axis of a point cloud using PCA.
+        :param point_cloud: Open3D point cloud object.
+        :return: Tuple containing the cosine similarity of the principal axis with the Z-axis and the principal axis vector.
+        """
         # PCA 主轴
         self = ObjectFeaturesExtractor
         pca_axes = self.compute_principal_axes(point_cloud)
@@ -275,7 +373,12 @@ class ObjectFeaturesExtractor:
 
     @staticmethod
     def compute_size(point_cloud):
-        # 计算边界框尺寸和体积
+        """
+        Compute the size-related features of a point cloud.
+        :param point_cloud: Open3D point cloud object.
+        :return: Tuple containing density, bounding box extent, surface area, and volume of the point cloud.
+        """
+
         self = ObjectFeaturesExtractor
         obb_extent = self.compute_bounding_box(point_cloud)
         volume = np.prod(obb_extent)
@@ -286,6 +389,11 @@ class ObjectFeaturesExtractor:
 
     @staticmethod
     def compute_angle_change(velocity_vectors):
+        """
+        Compute the angle changes between consecutive velocity vectors.
+        :param velocity_vectors: List of velocity vectors.
+        :return: Array of angle changes.
+        """
         angle_changes = []
         for i in range(1, len(velocity_vectors)):
             angle_change = ObjectFeaturesExtractor.compute_cosine_similarity(velocity_vectors[i - 1],
@@ -297,18 +405,17 @@ class ObjectFeaturesExtractor:
 class StaticFeaturesExtractor:
     def __init__(self, dataset):
         """
-        初始化静态特征提取器
-        :param dataset: 结构化数据
+        Initialize the static feature extractor.
+        :param dataset: Structured data containing point clouds and other relevant information.
         """
         self.tools = ObjectFeaturesExtractor
         self.frame_data = dataset
 
     def extract_features(self):
         """
-        提取所有点云的静态特征
-        :return: 包含每个对象特征的列表
+        Extract static features from all point clouds in the dataset.
+        :return: A list of dictionaries, each containing features for one object.
         """
-
         features_list = []
         for data in self.frame_data:
             features = self.compute_static_features(data)
@@ -318,70 +425,63 @@ class StaticFeaturesExtractor:
     @staticmethod
     def compute_geometric_center(point_cloud):
         """
-        计算点云的几何中心。
-        :param point_cloud: Open3D 点云对象。
-        :return: 几何中心的坐标 (numpy.ndarray)。
+        Compute the geometric center of a point cloud.
+        :param point_cloud: An Open3D point cloud object.
+        :return: Coordinates of the geometric center (numpy.ndarray).
         """
-        # 将点云的点转换为 NumPy 数组
         points = np.asarray(point_cloud.points)
-
-        # 计算所有点的平均位置
         geometric_center = np.mean(points, axis=0)
-
         return geometric_center
 
     def compute_static_features(self, dataset):
         """
-        利用已有方法计算单个点云的静态特征
-        :param dataset: 单个对象的点云
-        :return: 特征字典
+        Compute static features for each object in a dataset using its point cloud.
+        :param dataset: A dataset containing the point clouds of single or multiple objects.
+        :return: A list of feature dictionaries for each object.
         """
+        # Skip objects with fewer than 5 points as they are too small to provide reliable features.
         features_list = []
         for obj in dataset['extract_obj']:
             if np.asarray(obj.points).shape[0] < 5:
                 continue
 
             features = {}
-            # 调用 ObjectFeaturesExtractor 的方法计算边界框尺寸
-
+            # Compute the principal axis using PCA and calculate the cosine of the angle with the Z-axis.
             pca_z_cosine, principal_axis = self.tools.compute_main_axis(obj)
 
+            # Compute density, extent of the oriented bounding box, surface area, and volume.
             density, obb_extent, surface_area, volume = self.tools.compute_size(obj)
 
             center_location = self.compute_geometric_center(obj)
             camera_location = dataset['pose']['position']
 
+            # Adjust density based on the squared distance from the camera to the object center.
             density /= self.tools.distance_between_points([camera_location, center_location]) ** 2
 
+            # Determine the dimensions based on the bounding box extent and the principal axis angle.
             height, length, width, xy_area = self.tools.determine_3d_value(obb_extent, pca_z_cosine)
 
-            # 宽度，高度，长度
+            # Populate features for this object.
             features['width'], features['height'], features['length'] = width, height, length
-            # 体积
             features['volume'] = volume
-            # 表面积
             features['surface_area'] = surface_area
-            # XY平面面积
             features['xy_area'] = xy_area
-            # 密度
             features['density'] = density
-            # 计算PCA的Z轴余弦相似度
             features['principal_axis_x'] = principal_axis[0]
             features['principal_axis_y'] = principal_axis[1]
             features['principal_axis_z'] = principal_axis[2]
-
             features['pca_z_cosine'] = pca_z_cosine
 
+            # Store the object's location and timestamp data.
             features['location_x'] = center_location[0]
             features['location_y'] = center_location[1]
             features['location_z'] = center_location[2]
-
             features['timestamp'] = dataset['pose']['timestamp']
 
+            # Store the camera's location and quaternion for pose orientation.
             features['camera_location_x'] = dataset['pose']['position']['x']
             features['camera_location_y'] = dataset['pose']['position']['y']
             features['camera_location_z'] = dataset['pose']['position']['z']
-
             features['camera_quaternion_x'] = dataset['pose']['quaternion']['x']
             features['camera_quaternion_y'] = dataset['pose']['quaternion']['y']
             features['camera_quaternion_z'] = dataset['pose']['quaternion']['z']

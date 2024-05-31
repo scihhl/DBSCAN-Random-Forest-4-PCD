@@ -6,17 +6,17 @@ import open3d as o3d
 class PointCloudLoader:
     def __init__(self, base_dir):
         """
-        初始化PointCloudLoader
-        :param base_dir: 存储点云文件的基本目录
+        Initialize a PointCloudLoader object.
+        :param base_dir: The base directory where point cloud files are stored.
         """
         self.base_dir = base_dir
 
     def construct_file_path(self, track_id, frame_id):
         """
-        构造PCD文件的完整路径
-        :param track_id: 跟踪数据集的ID（1, 2, 或 3）
-        :param frame_id: 帧的编号，如9048_1_frame
-        :return: 完整的文件路径
+        Construct the full path for PCD files.
+        :param track_id: The tracking dataset ID (1, 2, or 3).
+        :param frame_id: The frame number, such as '9048_1_frame'.
+        :return: A list of full file paths for PCD files.
         """
         file_path = f"{self.base_dir}/tracking_train_pcd_{track_id}/result_{frame_id}_frame"
         return [os.path.join(file_path, f) for f in os.listdir(file_path) if f.endswith('.pcd')]
@@ -24,19 +24,19 @@ class PointCloudLoader:
     @staticmethod
     def load_point_cloud(file_path):
         """
-        读取单个PCD文件
-        :param file_path: PCD文件的完整路径
-        :return: 加载的点云对象
+        Load a single PCD file.
+        :param file_path: The full path to a PCD file.
+        :return: The loaded point cloud object.
         """
         pcd = o3d.io.read_point_cloud(file_path)
         return pcd
 
     def load_all_point_clouds(self, track_id, frame_id):
         """
-        加载一个跟踪帧中的所有PCD文件
-        :param track_id: 跟踪数据集的ID
-        :param frame_id: 帧的编号
-        :return: 点云对象列表
+        Load all PCD files for a given tracking frame.
+        :param track_id: The tracking dataset ID.
+        :param frame_id: The frame number.
+        :return: A list of point cloud objects.
         """
         file_paths = self.construct_file_path(track_id, frame_id)
         point_clouds = [self.load_point_cloud(fp) for fp in file_paths]
@@ -44,23 +44,28 @@ class PointCloudLoader:
 
     @staticmethod
     def convert_to_numpy(point_clouds):
+        """
+        Convert point cloud objects to numpy arrays.
+        :param point_clouds: A list of point cloud objects.
+        :return: A list of numpy arrays where each array represents points in a point cloud.
+        """
         return [np.asarray(point_clouds[i].points) for i in range(len(point_clouds))]
 
 
 class CameraPoseLoader:
     def __init__(self, base_dir):
         """
-        初始化CameraPoseLoader
-        :param base_dir: 存储摄像头位置信息文件的基本目录
+        Initialize a CameraPoseLoader object.
+        :param base_dir: The base directory where camera pose files are stored.
         """
         self.base_dir = base_dir
 
     def construct_file_path(self, frame_id, file_id):
         """
-        构造摄像头位置信息文件的完整路径
-        :param frame_id: 帧的编号，如9048_1_frame
-        :param file_id: 文件编号，如233
-        :return: 完整的文件路径
+        Construct the full path for a camera pose file.
+        :param frame_id: The frame number, such as '9048_1_frame'.
+        :param file_id: The file number, such as 233.
+        :return: The complete file path.
         """
         file_path = f"{self.base_dir}/tracking_train_pose/result_{frame_id}_frame/{file_id}_pose.txt"
         return file_path
@@ -68,9 +73,9 @@ class CameraPoseLoader:
     @staticmethod
     def read_pose_file(file_path):
         """
-        读取单个摄像头位置信息文件
-        :param file_path: 摄像头位置信息文件的完整路径
-        :return: 摄像头位置和姿态数据的字典
+        Read a single camera pose file.
+        :param file_path: The complete path to a camera pose file.
+        :return: A dictionary containing the camera position and orientation data.
         """
         with open(file_path, 'r') as file:
             data = file.readline().strip().split()
@@ -83,10 +88,10 @@ class CameraPoseLoader:
 
     def load_camera_poses(self, frame_id, file_id):
         """
-        加载指定的摄像头位置信息
-        :param frame_id: 帧的编号
-        :param file_id: 文件编号
-        :return: 摄像头位置和姿态数据
+        Load specified camera pose information.
+        :param frame_id: The frame number.
+        :param file_id: The file number.
+        :return: The camera position and orientation data.
         """
         file_path = self.construct_file_path(frame_id, file_id)
         return self.read_pose_file(file_path)
@@ -95,17 +100,17 @@ class CameraPoseLoader:
 class ObjectLabelLoader:
     def __init__(self, base_dir):
         """
-        初始化ObjectLabelLoader
-        :param base_dir: 存储标签信息文件的基本目录
+        Initialize an ObjectLabelLoader object.
+        :param base_dir: The base directory where label files are stored.
         """
         self.base_dir = base_dir
 
     def construct_file_path(self, frame_id, file_id):
         """
-        构造标签信息文件的完整路径
-        :param frame_id: 帧的编号，如9048_1
-        :param file_id: 文件编号，如233
-        :return: 完整的文件路径
+        Construct the full path for a label file.
+        :param frame_id: The frame number, such as '9048_1'.
+        :param file_id: The file number, such as 233.
+        :return: The complete file path.
         """
         file_path = f"{self.base_dir}/tracking_train_label/{frame_id}/{file_id}.txt"
         return file_path
@@ -113,9 +118,9 @@ class ObjectLabelLoader:
     @staticmethod
     def read_label_file(file_path):
         """
-        读取单个标签信息文件
-        :param file_path: 标签信息文件的完整路径
-        :return: 包含所有物体标签数据的列表
+        Read a single label file.
+        :param file_path: The complete path to a label file.
+        :return: A list containing all object label data.
         """
         objects = []
         with open(file_path, 'r') as file:
@@ -133,10 +138,10 @@ class ObjectLabelLoader:
 
     def load_object_labels(self, frame_id, file_id):
         """
-        加载指定的标签信息
-        :param frame_id: 帧的编号
-        :param file_id: 文件编号
-        :return: 包含所有物体标签的列表
+        Load specified label information.
+        :param frame_id: The frame number.
+        :param file_id: The file number.
+        :return: A list containing all object labels.
         """
         file_path = self.construct_file_path(frame_id, file_id)
         return self.read_label_file(file_path)
@@ -144,10 +149,11 @@ class ObjectLabelLoader:
     @staticmethod
     def classification_objects(objs, target):
         """
-        加载指定的类别
-        :param objs: 对象字典
-        :param target: 目标类别' 1 for small vehicles, 2 for big vehicles, 3 for pedestrian, 4 for motorcyclist and bicyclist, 5 for traffic cones and 6 for others. '
-        :return: 包含目标对象的列表
+        Filter objects by specified category.
+        :param objs: List of object dictionaries.
+        :param target: Target category, where 1 = small vehicles, 2 = large vehicles, 3 = pedestrians,
+         4 = motorcyclists and bicyclists, 5 = traffic cones, and 6 = others.
+        :return: A list containing objects of the target category.
         """
         return [obj for obj in objs if objs['object_type'] == target]
 
@@ -155,9 +161,9 @@ class ObjectLabelLoader:
 class FrameDataProcessor:
     def __init__(self, base_dir, frame_id):
         """
-        初始化FrameDataProcessor
-        :param base_dir: 数据的根目录
-        :param frame_id: 当前处理的帧ID，例如 '9048_1_frame'
+        Initialize a FrameDataProcessor object.
+        :param base_dir: The root directory for the data.
+        :param frame_id: The ID of the frame being processed, e.g., '9048_1_frame'.
         """
         self.base_dir = base_dir
         self.frame_id = frame_id
@@ -167,23 +173,23 @@ class FrameDataProcessor:
 
     def load_frame_data(self, file_id):
         """
-        加载一个帧的所有相关数据
-        :param file_id: 文件编号，如 '233'
-        :return: 返回一个包含pose, labels和point_clouds的字典，如果加载过程中出现错误则返回None
+        Load all relevant data for a frame.
+        :param file_id: The file number, e.g., '233'.
+        :return: A dictionary containing pose, labels, and point clouds; returns None if an error occurs during loading.
         """
         try:
-            # 加载Pose数据
+            # Load Pose data
             pose = self.pose_loader.load_camera_poses(self.frame_id, file_id)
 
-            # 加载Label数据
+            # Load Label data
             labels = self.label_loader.load_object_labels(self.frame_id, file_id)
 
-            # 确定PCD文件所在的track_id文件夹
+            # Determine the track_id folder where the PCD file resides
             track_id = self.find_track_id()
             if track_id is None:
                 raise ValueError("Frame ID not found in any track ID folder")
 
-            # 加载与file_id对应的单个PCD文件
+            # Load the PCD file corresponding to file_id
             pcd_path = os.path.join(self.base_dir, f'tracking_train_pcd_{track_id}',
                                     f'result_{self.frame_id}_frame', f'{file_id}.pcd')
 
@@ -195,17 +201,17 @@ class FrameDataProcessor:
             return {
                 'pose': pose,
                 'labels': labels,
-                'point_cloud': point_cloud  # 返回单个点云对象
+                'point_cloud': point_cloud  # Return a single point cloud object
             }
 
-        except Exception as e:  # 捕获所有可能的异常
+        except Exception as e:  # Catch all possible exceptions
             print(f"An unexpected error occurred: {e}")
             return None
 
 
     def find_track_id(self):
         """
-        确定frame_id位于哪个track_id下
+        Determine under which track_id the frame_id is located.
         """
         track_ids = [1, 2, 3]
         for track_id in track_ids:
@@ -215,6 +221,9 @@ class FrameDataProcessor:
         return None
 
     def load_all_frame_data(self):
+        """
+        Load data for all frames, sort the file IDs numerically, and process each frame's data.
+        """
         label_path = os.path.join(self.base_dir, 'tracking_train_label', self.frame_id)
         file_ids = [f.split('_')[0][:-4] for f in os.listdir(label_path) if f.endswith('.txt')]
         all_data = []
@@ -234,7 +243,7 @@ class FrameDataProcessor:
     @staticmethod
     def numeric_sort_key(ids):
         """
-        从文件名中提取数字，用于排序
+        Extract numeric part from filenames for sorting.
         """
         int_numbers = [int(num) for num in ids]
         sorted_int_numbers = sorted(int_numbers)
@@ -242,11 +251,18 @@ class FrameDataProcessor:
 
     @staticmethod
     def collect_object_points(frame_data):
+        """
+        Extract point clouds for objects (before coordinate transformation).
+        """
         pc_manager = PointCloudManager(frame_data['point_cloud'])
         # 提取对象的点云（在坐标转换之前）
         pc_manager.extract_object_point_clouds(frame_data['labels'])
 
     def traverse_points(self, frame_data, file_id):
+        """
+        Transform entire point cloud to global coordinates and process each label for object point clouds,
+        coordinates, heading, and bounding box.
+        """
         try:
             # Convert the entire point cloud to global coordinates
             point_cloud_abs = self.transform_to_global_coordinates(frame_data['pose'],
@@ -290,10 +306,10 @@ class FrameDataProcessor:
     @staticmethod
     def transform_to_global_coordinates(pose, points):
         """
-        将点从相对坐标转换到全局坐标系
-        :param pose: 包含位置和四元数的字典
-        :param points: 待转换的点数组
-        :return: 转换后的点数组
+        Transform points from the local coordinate system to the global coordinate system based on the provided pose.
+        :param pose: A dictionary containing the position and quaternion (orientation) of the pose.
+        :param points: An array of points in the local coordinate system to be transformed.
+        :return: An array of points transformed into the global coordinate system.
         """
         # 提取位置和四元数
         translation = np.array([pose['position']['x'], pose['position']['y'], pose['position']['z']])
@@ -310,30 +326,35 @@ class FrameDataProcessor:
     @staticmethod
     def rotate_heading(quaternion, heading):
         """
-        使用四元数旋转2D heading角度
-        :param quaternion: 摄像机姿势信息
-        :param heading: 本地坐标系下的heading（角度值，假设0度指向正北，角度逆时针增加）
-        :return: 全局坐标系下的heading（角度值）
+        Rotate a 2D heading angle using a quaternion to convert it from a local coordinate system to a global coordinate system.
+        :param quaternion: A dictionary containing the quaternion elements (w, x, y, z) representing the orientation.
+        :param heading: A heading angle in radians in the local coordinate system (assuming 0 radians points north and increases counterclockwise).
+        :return: The heading angle in radians in the global coordinate system.
         """
-        # 将2D heading角度转换为向量
+        # Convert the quaternion from the dictionary into a numpy array
         quaternion = np.array(
             [quaternion['w'], quaternion['x'], quaternion['y'], quaternion['z']])
 
+        # Convert the heading angle to a 3D vector (ignoring z-axis because heading is in 2D)
         heading_vector = np.array([np.cos(heading), np.sin(heading), 0])
 
-        # 创建旋转矩阵
+        # Calculate the rotation matrix from the quaternion
         rotation_matrix = o3d.geometry.get_rotation_matrix_from_quaternion(quaternion)
 
-        # 旋转heading向量
+        # Rotate the heading vector using the rotation matrix
         global_heading_vector = np.dot(rotation_matrix, heading_vector)
 
-        # 计算全局heading角度
+        # Calculate the global heading angle from the rotated vector
         global_heading = np.arctan2(global_heading_vector[1], global_heading_vector[0])
         return global_heading
 
 
 class PointCloudManager:
     def __init__(self, point_cloud):
+        """
+        Initialize the PointCloudManager with a point cloud.
+        :param point_cloud: The Open3D point cloud object to be managed.
+        """
         self.point_cloud = point_cloud
 
     @staticmethod
@@ -429,38 +450,46 @@ class PointCloudManager:
 
 class PCDObjectExtractor(FrameDataProcessor):
     def __init__(self, base_dir, frame_id):
+        """
+        Initialize the PCDObjectExtractor which is a subclass of FrameDataProcessor.
+        :param base_dir: The base directory where data is stored.
+        :param frame_id: The specific frame ID to process.
+        """
         super().__init__(base_dir, frame_id)
 
-    def extract_objects(self, eps=0.5, min_points=20, z_threshold=0.6):
+    def extract_objects(self, eps=0.2, min_points=10, z_threshold=0.3):
         """
-        提取指定帧的所有物体及其点云数据
-        :param eps: DBSCAN的邻域半径
-        :param min_points: 形成一个聚类所需的最小点数
-        :param z_threshold: Z轴过滤阈值
-        :return: 包含各个物体点云的列表
+        Extract all objects and their point cloud data from a specified frame using DBSCAN clustering.
+        :param eps: The neighborhood radius for DBSCAN clustering.
+        :param min_points: The minimum number of points required to form a cluster.
+        :param z_threshold: The height threshold to filter out points based on the Z-axis.
+        :return: A list containing point clouds of the extracted objects.
         """
         frame_data, _ = self.load_all_frame_data()
 
-        # 计算所有点云数据中Z轴的第5百分位数
+        # Calculate the 30th percentile of Z-axis values across all point cloud data in the frame
         all_z_values = np.concatenate([np.asarray(data['point_cloud'].points)[:, 2] for data in frame_data])
-        percentile_z_value = np.percentile(all_z_values, 40)
+        percentile_z_value = np.percentile(all_z_values, 30)
 
-        # 计算过滤阈值
+        # Compute the absolute Z-axis threshold
         absolute_z_threshold = percentile_z_value + z_threshold
 
         for data in frame_data:
             point_cloud = data['point_cloud']
             points = np.asarray(point_cloud.points)
 
-            # 过滤低于绝对阈值的点
+            #visualization([point_cloud])
+
+            # Filter points below the absolute Z-axis threshold
             filtered_points = points[points[:, 2] > absolute_z_threshold]
             filtered_pcd = o3d.geometry.PointCloud()
             filtered_pcd.points = o3d.utility.Vector3dVector(filtered_points)
             #visualization([filtered_pcd])
 
+            # Perform DBSCAN clustering on filtered points
             labels = np.array(filtered_pcd.cluster_dbscan(eps=eps, min_points=min_points, print_progress=False))
 
-            # 提取聚类结果
+            # Extract clusters
             max_label = labels.max()
             extract_obj = []
             for i in range(max_label + 1):
@@ -469,7 +498,9 @@ class PCDObjectExtractor(FrameDataProcessor):
                 object_pcd.points = o3d.utility.Vector3dVector(cluster_points)
                 extract_obj.append(object_pcd)
 
-            #visualization(extract_obj)
+                #obb = object_pcd.get_axis_aligned_bounding_box()
+                #extract_obj.append(obb)
+                #visualization(extract_obj)
             data['extract_obj'] = extract_obj
 
         return frame_data
@@ -511,13 +542,13 @@ def test_frame():
         print('Pose of this PCD files is', frame['pose'])
         print('Labels found in this PCD files are', len(frame['labels']))
         print('First label coordinates are', frame['labels'])
-        print('PCD file is composed of', frame['point_cloud'])  # 注意现在返回的是单个点云对象
+        print('PCD file is composed of', frame['point_cloud'])
         print('First point coordinates are', np.asarray(frame['point_cloud'].points)[0])
-        print('+++++++++++++++++end++++++++++++++++')  # 注意现在返回的是单个点云对象
+        print('+++++++++++++++++end++++++++++++++++')
 
 
 def test_extract():
-    base_dir = 'data'  # 假设数据存储在名为"data"的文件夹中
+    base_dir = 'data'
     extractor = PCDObjectExtractor(base_dir, frame_id='9048_1')
     frame_data = extractor.extract_objects()
     return frame_data

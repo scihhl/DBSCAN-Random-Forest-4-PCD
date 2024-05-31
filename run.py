@@ -1,13 +1,14 @@
 import os
-
-import numpy as np
-
 from data import PCDObjectExtractor, FrameDataProcessor, visualization, PointCloudManager
 from feature import ObjectHandler, ObjectFeaturesExtractor, StaticFeaturesExtractor
 import pandas as pd
 from random_forest import RandomForestModel
 import pickle
 from track import ObjectTracker
+from analyze import EvaluationMetrics
+# Open3D for 3D data processing
+# Citation:
+# Zhou, Q.-Y., Park, J., & Koltun, V. (2018). Open3D: A Modern Library for 3D Data Processing. arXiv:1801.09847.
 
 
 class Task:
@@ -42,7 +43,7 @@ class Task:
             features.append([])
             frame_ids.append(frame_id)
             processor = PCDObjectExtractor(self.base_dir, frame_id)
-            frame_data = processor.extract_objects(eps=0.5, min_points=20)
+            frame_data = processor.extract_objects(eps=0.7, min_points=20)
             static_extractor = StaticFeaturesExtractor(frame_data)
             features_list = static_extractor.extract_features()
             features[-1] += features_list
@@ -90,12 +91,19 @@ class Task:
 
         unique_sheets = res['SheetName'].unique()
         for sheet in unique_sheets:
-            filtered_res = res[res['SheetName'] == sheet].copy()
-            filtered_res.reset_index(drop=True)
+
+            true = self.read_sheet(self.test_data_path, sheet)
+
+            pred = res[res['SheetName'] == sheet].copy()
+            pred.reset_index(drop=True)
+
+            evaluator = EvaluationMetrics(pred, true)
+            evaluate_metrics = evaluator.evaluate()
+            print(evaluate_metrics)
 
             _, temp = FrameDataProcessor(self.base_dir, sheet).load_all_frame_data()
 
-            for row in filtered_res.itertuples():
+            for row in pred.itertuples():
                 camera_position = [row.camera_location_x, row.camera_location_y, row.camera_location_z]
                 camera_quaternion = [row.camera_quaternion_w, row.camera_quaternion_x, row.camera_quaternion_y,
                                      row.camera_quaternion_z]
@@ -106,9 +114,6 @@ class Task:
                 bbox = PointCloudManager.create_3d_bbox(object_position, object_size, heading)
                 temp += [bbox]
             visualization(temp)
-
-
-
 
     @staticmethod
     def save_model(model, name):
@@ -178,7 +183,7 @@ class Task:
 if __name__ == '__main__':
     task = Task()
     #task.prepare_data()
-    #task.prepare_static_feature()
+    task.prepare_static_feature()
     #task.generate_random_forest_model()
     task.tracking()
 
