@@ -13,6 +13,10 @@ from analyze import EvaluationMetrics
 
 class Task:
     def __init__(self, base='data'):
+        """
+        Initialize the Task class.
+        :param base: Base directory where data is stored.
+        """
         self.base_dir = base
         self.train_set, self.test_set = self.split_dataset()
         self.train_data_path, self.test_data_path = 'temp/train_features.xlsx', 'temp/test_features.xlsx'
@@ -25,10 +29,17 @@ class Task:
                              'velocity_magnitude', 'acceleration_magnitude', 'angle_speed']
 
     def prepare_data(self):
+        """
+        Extract features from the dataset and save them to Excel files.
+        """
         self.extract_dataset_feature(self.train_set, filename=self.train_data_path)
         self.extract_dataset_feature(self.test_set, filename=self.test_data_path)
 
     def split_dataset(self):
+        """
+        Split the dataset into training and testing sets.
+        :return: A tuple containing training and testing sets.
+        """
         file_path = f"{self.base_dir}/tracking_train_label"
         directories = self.list_directories(file_path)
         train_set = directories[:-1]
@@ -36,6 +47,9 @@ class Task:
         return train_set, test_set
 
     def prepare_static_feature(self):
+        """
+        Prepare static features from the test set and save them to an Excel file.
+        """
         features = []
         frame_ids = []
         for directory in self.test_set[:1]:
@@ -50,6 +64,11 @@ class Task:
         self.save_data(frame_ids, features, self.static_feature_path)
 
     def extract_dataset_feature(self, dataset, filename):
+        """
+        Extract features from the dataset and save them to an Excel file.
+        :param dataset: List of directories containing the dataset.
+        :param filename: Filename to save the extracted features.
+        """
         features = []
         frame_ids = []
         for directory in dataset:
@@ -68,6 +87,9 @@ class Task:
         self.save_data(frame_ids, features, filename)
 
     def generate_random_forest_model(self):
+        """
+        Generate and save RandomForest models for static and full features.
+        """
         train_data = self.read_all_sheets(self.train_data_path)
         test_data = self.read_all_sheets(self.test_data_path)
         static = self.model_generator(train_data, test_data, self.static_feature, n_estimators=50, random_state=42)
@@ -76,6 +98,9 @@ class Task:
         self.save_model(full, self.full_model_path)
 
     def tracking(self):
+        """
+        Perform object tracking using the trained RandomForest models and evaluate the results.
+        """
         static_rf_model = self.load_model(self.static_model_path)  # 假设已经加载了训练好的模型
         full_rf_model = self.load_model(self.full_model_path)  # 假设已经加载了训练好的模型
 
@@ -117,62 +142,89 @@ class Task:
 
     @staticmethod
     def save_model(model, name):
+        """
+        Save a model to a file.
+        :param model: The model to be saved.
+        :param name: The filename to save the model.
+        """
         with open(name, 'wb') as f:
             pickle.dump(model, f)
 
     @staticmethod
     def load_model(name):
+        """
+        Load a model from a file.
+        :param name: The filename to load the model from.
+        :return: The loaded model.
+        """
         with open(name, 'rb') as f:
             loaded_model = pickle.load(f)
         return loaded_model
 
     @staticmethod
     def save_data(sheet_names: list, features: list, name: str):
-        # 确保页签名称列表和特征列表的长度相同
+        """
+        Save extracted features to an Excel file with multiple sheets.
+        :param sheet_names: List of sheet names.
+        :param features: List of features for each sheet.
+        :param name: The filename to save the data.
+        """
         if len(features) != len(sheet_names):
             raise ValueError("每个特征集必须有一个对应的页签名称")
 
-        # 创建一个Excel文件写入器
         with pd.ExcelWriter(name, engine='openpyxl') as writer:
-            # 遍历特征列表和页签名称列表
             for feature_list, sheet_name in zip(features, sheet_names):
-                # 将子列表中的字典转换为DataFrame
                 df = pd.DataFrame(feature_list)
-                # 保存DataFrame到Excel的一个新页签，使用提供的页签名
                 df.to_excel(writer, sheet_name=sheet_name, index=False)
 
     @staticmethod
     def read_sheet(filename: str, sheet_name: str) -> pd.DataFrame:
-        # 从文件中读取指定的页签
+        """
+        Read a specific sheet from an Excel file.
+        :param filename: The filename to read from.
+        :param sheet_name: The name of the sheet to read.
+        :return: DataFrame containing the data from the sheet.
+        """
         df = pd.read_excel(filename, sheet_name=sheet_name)
         return df
 
     @staticmethod
     def read_all_sheets(filename: str) -> pd.DataFrame:
-        # 加载Excel文件中的所有页签
+        """
+        Read all sheets from an Excel file and concatenate them into a single DataFrame.
+        :param filename: The filename to read from.
+        :return: DataFrame containing data from all sheets.
+        """
         xls = pd.ExcelFile(filename)
-        # 创建一个空的DataFrame来存储所有页签的数据
         all_data = pd.DataFrame()
         for sheet_name in xls.sheet_names:
-            # 读取每个页签的数据
             df = xls.parse(sheet_name)
-            # 添加一个列来标记数据来源的页签名
             df['SheetName'] = sheet_name
-            # 将这个页签的DataFrame追加到总的DataFrame中
             all_data = pd.concat([all_data, df], ignore_index=True)
         return all_data
 
     @staticmethod
     def list_directories(path):
-        """返回指定路径下所有子文件夹的列表"""
-        # 获取path下的所有条目
+        """
+        Return a list of all subdirectories in the given path.
+        :param path: The directory path to list subdirectories.
+        :return: List of subdirectory names.
+        """
         entries = os.listdir(path)
-        # 过滤出目录
         directories = [entry for entry in entries if os.path.isdir(os.path.join(path, entry))]
         return directories
 
     @staticmethod
     def model_generator(train_data, test_data, features, n_estimators=50, random_state=42):
+        """
+        Generate and train a RandomForest model.
+        :param train_data: Training data.
+        :param test_data: Testing data.
+        :param features: List of feature column names.
+        :param n_estimators: Number of trees in the forest.
+        :param random_state: Seed for random number generator.
+        :return: Trained RandomForest model.
+        """
         model = RandomForestModel(features, 'object_type', n_estimators=n_estimators, random_state=random_state)
         model.input_data(train_data, test_data)
         model.train()
@@ -182,9 +234,9 @@ class Task:
 
 if __name__ == '__main__':
     task = Task()
-    #task.prepare_data()
+    task.prepare_data()
     task.prepare_static_feature()
-    #task.generate_random_forest_model()
+    task.generate_random_forest_model()
     task.tracking()
 
 
